@@ -3,3 +3,5 @@ dist/
 .env
 .env.local
 *.metadata.json
+GEMINI.md
+AGENTS.md

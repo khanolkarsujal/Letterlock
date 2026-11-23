@@ -25,8 +25,8 @@ Every Letterlock feature, with its priority, the screen it appears on (S1 to S9,
 
 | ID | Feature | Priority | Screen | Done when | Status |
 | -- | ------- | -------- | ------ | --------- | ------ |
-| F5 | On-device detection | Must | S2 | Gemini Nano 4 finds names, addresses, lease references, account numbers, phone numbers, emails, amounts and dates in a sample story. The call is set to on-device only and makes no cloud request. | Not started |
-| F6 | Rules-based checks | Must | S2 | Phone numbers, emails and account numbers in sample stories are found without the on-device model. | Not started |
+| F5 | On-device detection | Must | S2 | Gemini Nano 4 finds names, addresses, lease references, account numbers, phone numbers, emails, amounts and dates in a sample story. The call is set to on-device only and makes no cloud request. | Done |
+| F6 | Rules-based checks | Must | S2 | Phone numbers, emails and account numbers in sample stories are found without the on-device model. | Done |
 | F7 | Placeholder map | Must | S2 | Each detected value gets a stable placeholder such as Person A or Address 1. The same value always gets the same placeholder. The map exists only in memory. | Not started |
 | F8 | Privacy scan screen | Should | S2 | A waiting screen shows while detection runs, with the live swap list, a progress value and the text "Nothing has been sent." The user continues with Proceed to Review. | Not started |
 
@@ -80,7 +80,7 @@ Every Letterlock feature, with its priority, the screen it appears on (S1 to S9,
 | -- | ------- | -------- | ------ | --------- | ------ |
 | F33 | Phone layouts † | Should | S9 | All screens work at phone width. Panels stack and the approval bar stays reachable. | Not started |
 | F34 | Accessibility | Should | All | Focus moves to the heading on each screen. Dialogs trap focus and close with Escape. Status changes are announced. Text meets 4.5:1 contrast. | Not started |
-| F35 | Tests for redaction and checks | Must | — | Unit tests cover replace, restore, the pre-send check and the returned-placeholder check, using invented sample stories only. | Not started |
+| F35 | Tests for redaction and checks | Must | — | Unit tests cover replace, restore, the pre-send check and the returned-placeholder check, using invented sample stories only. | Done |
 
 ## H. Added by the HTML prototype
 
