@@ -6,7 +6,7 @@ import {
   InferenceSource,
   type GenerativeModel,
 } from "firebase/ai";
-import { ai } from "./firebase";
+import { getFirebaseAi } from "./firebase";
 import { getSystemPrompt, type DisputeType } from "../prompts";
 import type { ApprovedOutboundText } from "../redaction";
 
@@ -49,10 +49,15 @@ const CLOUD_MODEL = "gemini3.8-flash";
 /** Defensive bound for the drafting call; the SDK default is 180 seconds. */
 const CLOUD_TIMEOUT_MS = 30_000;
 
-export const cloudModel: GenerativeModel = getGenerativeModel(ai, {
-  mode: InferenceMode.ONLY_IN_CLOUD,
-  inCloudParams: { model: CLOUD_MODEL },
-});
+let cloudModel: GenerativeModel | null = null;
+
+function getCloudModel(): GenerativeModel {
+  cloudModel ??= getGenerativeModel(getFirebaseAi(), {
+    mode: InferenceMode.ONLY_IN_CLOUD,
+    inCloudParams: { model: CLOUD_MODEL },
+  });
+  return cloudModel;
+}
 
 export interface CloudDraftOptions {
   /** Lets the caller cancel the request (for example, a Cancel button). */
@@ -80,7 +85,7 @@ export async function draftLetterInCloud(
   options: CloudDraftOptions = {},
 ): Promise<CloudDraftResult> {
   try {
-    const result = await cloudModel.generateContent(
+    const result = await getCloudModel().generateContent(
       {
         systemInstruction: getSystemPrompt(disputeType),
         contents: [

@@ -60,6 +60,14 @@ function isAccount(value: string): boolean {
 function createRules(): Rule[] {
   return [
     {
+      kind: "person",
+      pattern: /\b(?:my name is|name is|i am|i['’]m)\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){0,3})/gi,
+    },
+    {
+      kind: "person",
+      pattern: /\b(?:Mr|Mrs|Ms|Miss|Mx|Dr)\.?\s+[A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?/g,
+    },
+    {
       kind: "email",
       pattern: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
     },
@@ -118,10 +126,15 @@ export function detectWithRules(story: string): RuleMatch[] {
     for (const match of story.matchAll(rule.pattern)) {
       if (match.index === undefined) continue;
 
-      const value = match[0];
+      const value =
+        rule.kind === "person" && match[1] ? match[1] : match[0];
+      const valueOffset =
+        rule.kind === "person" && match[1]
+          ? match[0].indexOf(match[1], 0)
+          : 0;
       if (rule.accept && !rule.accept(value)) continue;
 
-      const start = match.index;
+      const start = match.index + valueOffset;
       const end = start + value.length;
       if (overlaps(start, end, ranges)) continue;
 

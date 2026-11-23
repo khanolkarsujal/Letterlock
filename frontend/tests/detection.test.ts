@@ -24,6 +24,26 @@ const story =
   "IBAN GB82WEST12345698765432. Rent was 1 200 000 on 2024-03-03.";
 
 describe("rules-based detection", () => {
+  it("finds explicitly introduced full names and titled names", () => {
+    const sample =
+      "My name is Priya Sharma. I am Alex Morgan. I'm Jamie Lee. My landlord, Mr Rao, has kept the deposit.";
+    const matches = detectWithRules(sample);
+
+    expect(valuesOf(matches, "person").sort()).toEqual(
+      ["Alex Morgan", "Jamie Lee", "Mr Rao", "Priya Sharma"].sort(),
+    );
+  });
+
+  it("finds Priya Sharma in the dispute sample", () => {
+    const sample =
+      "I moved out of 14 Oak Street on 3 June. My landlord, Mr Rao, " +
+      "has kept my deposit of 1,200. My name is Priya Sharma, lease ref LS-20418.";
+
+    expect(valuesOf(detectWithRules(sample), "person").sort()).toEqual(
+      ["Mr Rao", "Priya Sharma"].sort(),
+    );
+  });
+
   it("finds emails, phones and account numbers", () => {
     const matches = detectWithRules(story);
 

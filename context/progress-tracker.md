@@ -24,18 +24,22 @@ change.
 - Implemented the redaction core (`src/redaction/`): in-memory `RedactionMap`, `redactStory` (brands `ApprovedOutboundText` only after the pre-send check), `restoreText`, `findLeaks` and `checkReturnedPlaceholders`, with 19 Vitest tests (F35).
 - Hardened the cloud drafting call (`src/inference/cloudDrafting.ts`): model pinned, defensive timeout and cancellation, separate system instruction, SDK error classification and runtime `inferenceSource`. Still not wired to the UI.
 - Moved prompts to `src/prompts/`. `ApprovedOutboundText` now belongs to `src/redaction/`.
+- Wired live detection into the intake story editor: paste and edits trigger the detection pipeline after a short debounce, detected values replace the intake mock entities, and the UI reports model preparation, availability and limited detection.
+- Hardened the intake integration: detection presentation mapping is isolated, unexpected detection failures are shown without exposing story data, and reset invalidates in-flight detection results.
+- Made Firebase configuration lazy and optional at startup: an empty local `.env` now allows rules-only detection instead of a Zod crash, while Firebase callers report missing configuration when cloud or local model access is requested.
+- Added a development-only console summary for completed detection runs. It reports status, limits, unique value count, occurrence count and counts by kind without logging private text or placeholder maps.
+- Added deterministic rules for explicitly introduced full names and titled names, so “My name is Priya Sharma” and “Mr Rao” remain detectable when the on-device model omits them.
 
 ## In Progress
 
-- None. The detection engine is complete; the UI still uses mock data.
+- None. Intake detection is wired; the review UI still uses mock redaction behavior.
 
 ## Next Up
 
-1. Wire the detection engine into the intake/scan flow: run detection after paste, show the model status and the limited-detection notice (F1 to F4, F8).
-2. Build the review screen UI with interactive add/remove redactions and wire the redaction module into it (F7, F14, F19, F22).
-3. Connect cloud drafting via Firebase AI Logic (`InferenceMode.ONLY_IN_CLOUD`), with the returned-placeholder check before restoration.
-4. Build local restoration and real runtime local/cloud badge.
-5. Add open-source license, publish repo, deploy to Firebase Hosting, record 3-minute demo video and submit.
+1. Build the review screen UI with interactive add/remove redactions and wire the redaction module into it (F7, F14, F19, F22).
+2. Connect cloud drafting via Firebase AI Logic (`InferenceMode.ONLY_IN_CLOUD`), with the returned-placeholder check before restoration.
+3. Build local restoration and real runtime local/cloud badge.
+4. Add open-source license, publish repo, deploy to Firebase Hosting, record 3-minute demo video and submit.
 
 ## Open Questions
 
