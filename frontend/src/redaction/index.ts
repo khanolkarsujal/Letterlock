@@ -199,6 +199,19 @@ export class RedactionMap {
   }
 }
 
+/** Builds an in-memory placeholder map from validated sensitive values. */
+export function buildRedactionMap(
+  values: readonly SensitiveValue[],
+): RedactionMap {
+  const map = new RedactionMap();
+
+  for (const value of values) {
+    map.add(value.value, value.kind);
+  }
+
+  return map;
+}
+
 /**
  * Builds approved outbound text by replacing every entry value in the story.
  *

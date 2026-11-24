@@ -29,10 +29,19 @@ change.
 - Made Firebase configuration lazy and optional at startup: an empty local `.env` now allows rules-only detection instead of a Zod crash, while Firebase callers report missing configuration when cloud or local model access is requested.
 - Added a development-only console summary for completed detection runs. It reports status, limits, unique value count, occurrence count and counts by kind without logging private text or placeholder maps.
 - Added deterministic rules for explicitly introduced full names and titled names, so “My name is Priya Sharma” and “Mr Rao” remain detectable when the on-device model omits them.
+- Implemented step 1 of review redaction integration: detected values now build a real in-memory `RedactionMap`, produce stable placeholders and generate the redacted story used by the app state. Adding or removing UI entities updates the same map and keeps its placeholder token assignments consistent.
+- Implemented step 2 of review redaction integration: the review cards now render the current story and its real in-memory redacted text instead of prototype hard-coded copy, with private values and recognized placeholders shown as visual segments.
+- Implemented step 3 of review redaction integration: inline and modal add controls now validate that the manual detail exists in the current story, update the real placeholder map and regenerate the redacted text; remove actions remove values from the map and show a toast confirmation.
+- Implemented step 4 of review redaction: approving now calls `RedactionMap.redact()`, stores a branded `ApprovedOutboundText`, blocks navigation on leak or empty-story errors, and clears approval whenever the map or story changes.
+- Implemented cloud drafting integration: `/generating` calls Firebase AI Logic with the approved placeholder text, supports cancellation and retries, rejects responses missing or inventing placeholders, restores values locally only after validation, and sends `/letter` the restored draft. The static generating timer and static letter body are no longer the final result path.
+- Enabled Firebase App Check development mode: `FIREBASE_APPCHECK_DEBUG_TOKEN=true` is set before `initializeAppCheck`, with reCAPTCHA v3 for production via `VITE_FIREBASE_APPCHECK_SITE_KEY`.
+- Increased the cloud letter timeout from 30 seconds to 120 seconds and corrected the connection-error copy to show the actual client limit.
+- Shortened the dispute system prompts to a concise 300-500-word format, kept placeholder and anti-injection rules explicit, and capped cloud output at 768 tokens. The approved placeholder story remains a separate user message from system instructions.
+- Added Firebase App Check initialization for cloud calls: development uses an App Check debug token, production uses reCAPTCHA v3, and HTTP 401 responses are classified with a specific App Check message.
 
 ## In Progress
 
-- None. Intake detection is wired; the review UI still uses mock redaction behavior.
+- None. Intake detection and the real story/payload rendering in review are wired. Interactive add/remove redactions still need to be connected fully.
 
 ## Next Up
 

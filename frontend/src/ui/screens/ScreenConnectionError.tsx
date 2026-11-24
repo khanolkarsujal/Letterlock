@@ -1,17 +1,18 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
+import { useApp } from "../state/AppContext";
 
 export default function ScreenConnectionError() {
   const navigate = useNavigate();
+  const { startCloudDraft, draftError } = useApp();
   const [isRetrying, setIsRetrying] = useState(false);
 
-  const handleRetry = () => {
+  const handleRetry = async () => {
     setIsRetrying(true);
-    setTimeout(() => {
-      setIsRetrying(false);
-      navigate("/letter");
-    }, 1500);
+    const success = await startCloudDraft();
+    setIsRetrying(false);
+    navigate(success ? "/letter" : "/connection-error");
   };
 
   return (
@@ -36,6 +37,11 @@ export default function ScreenConnectionError() {
                   <p className="text-[15px] leading-relaxed text-[#5f5c72] max-w-2xl">
                     Your story and personal details are completely safe on this device. Nothing was leaked or exposed. We only attempted to send your anonymized placeholder text.
                   </p>
+                  {draftError && (
+                    <p className="text-[13px] font-semibold text-[#ef4444]" role="alert">
+                      {draftError}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="shrink-0 hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#f5f3ff] border border-[#ddd6fe] text-[12px] font-semibold text-[#5b46e8]">
@@ -66,7 +72,7 @@ export default function ScreenConnectionError() {
                   <span>Attempt status</span>
                   <span className="material-symbols-outlined text-[16px] text-[#ef4444]">schedule</span>
                 </div>
-                <div className="text-[14px] font-bold text-[#161427]">Timed out after 15s</div>
+                <div className="text-[14px] font-bold text-[#161427]">Timed out after 120s</div>
                 <div className="text-[12px] text-[#78767d]">Cloud server took too long</div>
               </div>
             </div>

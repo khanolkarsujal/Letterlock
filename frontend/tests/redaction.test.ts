@@ -10,6 +10,56 @@ import {
   type ApprovedOutboundText,
   type PlaceholderEntry,
 } from "../src/redaction";
+import { buildRedactionMap } from "../src/redaction";
+
+describe("buildRedactionMap", () => {
+  it("creates one placeholder map entry for each detected value", () => {
+    const map = buildRedactionMap([
+      { value: "Priya Sharma", kind: "person" },
+      { value: "eddy@gmail.com", kind: "email" },
+    ]);
+
+    expect(map.entries.map((entry) => entry.token)).toEqual([
+      "{Person A}",
+      "{Email 1}",
+    ]);
+  });
+
+  it("returns a leak-free redacted story from detected values", () => {
+    const map = buildRedactionMap([
+      { value: "Priya Sharma", kind: "person" },
+      { value: "eddy@gmail.com", kind: "email" },
+    ]);
+
+    const outbound = map.redact(
+      "My name is Priya Sharma. Email eddy@gmail.com.",
+    );
+
+    expect(outbound).toBe(
+      "My name is {Person A}. Email {Email 1}.",
+    );
+    expect(findLeaks(outbound, map.entries)).toEqual([]);
+  });
+
+  it("updates the redacted story after adding and removing a manual detail", () => {
+    const map = buildRedactionMap([
+      { value: "Priya Sharma", kind: "person" },
+    ]);
+    map.add("eddy@gmail.com", "email");
+
+    const withManualDetail = map.redact(
+      "Priya Sharma uses eddy@gmail.com.",
+    );
+    expect(withManualDetail).toBe(
+      "{Person A} uses {Email 1}.",
+    );
+
+    map.remove("eddy@gmail.com");
+    expect(map.redact("Priya Sharma uses eddy@gmail.com.")).toBe(
+      "{Person A} uses eddy@gmail.com.",
+    );
+  });
+});
 
 function buildEntries(pairs: Array<[string, PlaceholderEntry["kind"]]>): PlaceholderEntry[] {
   const map = new RedactionMap();
@@ -59,6 +109,17 @@ describe("RedactionMap tokens", () => {
 });
 
 describe("redactStory", () => {
+  it("does not create approved text if a sensitive value still leaks", () => {
+    const map = buildRedactionMap([
+      { value: "Priya Sharma", kind: "person" },
+    ]);
+    map.remove("Priya Sharma");
+
+    const outbound = map.redact("My name is Priya Sharma.");
+
+    expect(outbound).toBe("My name is Priya Sharma.");
+  });
+
   it("replaces every occurrence and returns approved outbound text", () => {
     const map = new RedactionMap();
     map.add("Alex Example", "person");

@@ -44,19 +44,32 @@ export class CloudDraftError extends Error {
  * Pinned explicitly so the model never changes with a Firebase SDK upgrade.
  * Update this single constant if the Firebase AI model id changes.
  */
-const CLOUD_MODEL = "gemini3.8-flash";
+const CLOUD_MODEL = "gemini-3.5-flash-lite";
 
-/** Defensive bound for the drafting call; the SDK default is 180 seconds. */
+/** Letter drafting can take longer than an interactive UI request. */
 const CLOUD_TIMEOUT_MS = 30_000;
 
 let cloudModel: GenerativeModel | null = null;
 
+const generationConfig = {
+  maxOutputTokens: 768,
+};
+
 function getCloudModel(): GenerativeModel {
   cloudModel ??= getGenerativeModel(getFirebaseAi(), {
-    mode: InferenceMode.ONLY_IN_CLOUD,
-    inCloudParams: { model: CLOUD_MODEL },
+    mode: InferenceMode.PREFER_IN_CLOUD,
+    inCloudParams: {
+      model: CLOUD_MODEL,
+      generationConfig,
+    },
   });
   return cloudModel;
+}
+
+// Initializes Firebase App Check and creates the cloud model before the generation screen starts the real letter request.
+
+export function prewarmCloudDrafting(): void {
+  getCloudModel();
 }
 
 export interface CloudDraftOptions {
@@ -129,16 +142,20 @@ function toCloudDraftError(
   // The SDK reports both timeouts and cancellations as an AbortError.
   if (isAbortError(err)) {
     return signal?.aborted
-      ? new CloudDraftError(
-          "The cloud request was cancelled.",
-          "cancelled",
-        )
+      ? new CloudDraftError("The cloud request was cancelled.", "cancelled")
       : new CloudDraftError("The cloud request timed out.", "timeout");
   }
 
   if (err instanceof AIError) {
     const status = err.customErrorData?.status;
 
+    if (status === 401) {
+      return asDraftError(
+        err,
+        "unknown",
+        "Firebase App Check rejected the request. Register or refresh the debug token in development.",
+      );
+    }
     if (status === 429) {
       return asDraftError(err, "quota", "The cloud model is rate-limited.");
     }
@@ -163,11 +180,7 @@ function toCloudDraftError(
             "network",
             "The cloud request could not be completed.",
           )
-        : asDraftError(
-            err,
-            "unknown",
-            "The cloud request was rejected.",
-          );
+        : asDraftError(err, "unknown", "The cloud request was rejected.");
     }
     if (err.code === AIErrorCode.ERROR) {
       return asDraftError(
@@ -229,6 +242,7 @@ function asDraftError(
   code: CloudDraftErrorCode,
   fallbackMessage: string,
 ): CloudDraftError {
-  const message = err instanceof Error && err.message ? err.message : fallbackMessage;
+  const message =
+    err instanceof Error && err.message ? err.message : fallbackMessage;
   return new CloudDraftError(message, code);
 }
