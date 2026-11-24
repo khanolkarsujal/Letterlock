@@ -3,10 +3,27 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useApp } from '../state/AppContext';
+import {
+  highlightOriginalStory,
+  highlightRedactedStory,
+} from '../lib/storySegments';
 
 function ScreenReview() {
-  const { entities, removeEntity, addEntity } = useApp();
+  const {
+    story,
+    entities,
+    redactionMap,
+    redactedStory,
+    approveStory,
+    removeEntity,
+    addEntity,
+  } = useApp();
   const navigate = useNavigate();
+  const originalSegments = highlightOriginalStory(story, redactionMap.entries);
+  const redactedSegments = highlightRedactedStory(
+    redactedStory ?? story,
+    redactionMap.entries,
+  );
 
   // Quick inline add state
   const [inlineVal, setInlineVal] = useState('');
@@ -16,17 +33,30 @@ function ScreenReview() {
   const [showModal, setShowModal] = useState(false);
   const [modalInput, setModalInput] = useState('the shop on Oak Lane');
   const [modalType, setModalType] = useState('Address');
+  const [approvalError, setApprovalError] = useState<string | null>(null);
 
   const handleAddInline = () => {
     if (!inlineVal.trim()) return;
-    addEntity(inlineVal.trim(), 'Custom / User Specified', inlineType);
-    setInlineVal('');
+    if (addEntity(inlineVal.trim(), 'Custom / User Specified', inlineType)) {
+      setInlineVal('');
+    }
   };
 
   const handleAddModal = () => {
     if (!modalInput.trim()) return;
-    addEntity(modalInput.trim(), 'Manual Redaction', modalType);
-    setShowModal(false);
+    if (addEntity(modalInput.trim(), 'Manual Redaction', modalType)) {
+      setModalInput('');
+      setShowModal(false);
+    }
+  };
+
+  const handleApprove = () => {
+    const result = approveStory();
+    setApprovalError(result.error);
+
+    if (result.ok) {
+      navigate('/generating');
+    }
   };
 
   return (
@@ -65,7 +95,17 @@ function ScreenReview() {
                   </span>
                 </div>
                 <div className="bg-[#faf9fe] rounded-xl p-5 text-[14px] text-[#161427] leading-[2.3] border border-[#f0ecfc]">
-                  I moved out of <span className="bg-[#ede8fc] text-[#4f3bd4] font-medium px-2 py-0.5 rounded-md inline-block border border-purple-400/40">14 Oak Street</span> on <span className="bg-[#ede8fc] text-[#4f3bd4] font-medium px-2 py-0.5 rounded-md inline-block border border-purple-400/40">3 June</span>. My landlord, <span className="bg-[#ede8fc] text-[#4f3bd4] font-medium px-2 py-0.5 rounded-md inline-block border border-purple-400/40">Mr Rao</span>, has kept my deposit of <span className="bg-[#ede8fc] text-[#4f3bd4] font-medium px-2 py-0.5 rounded-md inline-block border border-purple-400/40">£1,200</span> and has stopped replying. My name is <span className="bg-[#ede8fc] text-[#4f3bd4] font-medium px-2 py-0.5 rounded-md inline-block border border-purple-400/40">Priya Sharma</span>, lease ref <span className="bg-[#ede8fc] text-[#4f3bd4] font-medium px-2 py-0.5 rounded-md inline-block border-purple-400/40">LS-20418</span>. You can call me on <span className="bg-[#ede8fc] text-[#4f3bd4] font-medium px-2 py-0.5 rounded-md inline-block border-purple-400/40">98765 43210</span>.
+                  {story.trim()
+                    ? originalSegments.map((segment, index) =>
+                        segment.highlighted ? (
+                          <span key={`${segment.text}-${index}`} className="bg-[#ede8fc] text-[#4f3bd4] font-medium px-2 py-0.5 rounded-md inline-block border border-purple-400/40">
+                            {segment.text}
+                          </span>
+                        ) : (
+                          <React.Fragment key={`${segment.text}-${index}`}>{segment.text}</React.Fragment>
+                        ),
+                      )
+                    : "No story entered."}
                 </div>
                 <div className="pt-4 mt-4 flex items-center justify-between text-[#78767d] text-[13px] font-medium border-t border-[#f4f3f8]">
                   <div className="flex items-center gap-2">
@@ -91,7 +131,17 @@ function ScreenReview() {
                   </span>
                 </div>
                 <div className="bg-[#faf9fe] rounded-xl p-5 text-[14px] text-[#161427] leading-[2.3] border border-[#f0ecfc]">
-                  I moved out of <span className="bg-[#5b46e8] text-white px-2 py-0.5 rounded-md font-mono font-medium text-xs inline-block shadow-sm">{`{Address 1}`}</span> on <span className="bg-[#5b46e8] text-white px-2 py-0.5 rounded-md font-mono font-medium text-xs inline-block shadow-sm">{`{Date 1}`}</span>. My landlord, <span className="bg-[#5b46e8] text-white px-2 py-0.5 rounded-md font-mono font-medium text-xs inline-block shadow-sm">{`{Person B}`}</span>, has kept my deposit of <span className="bg-[#5b46e8] text-white px-2 py-0.5 rounded-md font-mono font-medium text-xs inline-block shadow-sm">{`{Amount 1}`}</span> and has stopped replying. My name is <span className="bg-[#5b46e8] text-white px-2 py-0.5 rounded-md font-mono font-medium text-xs inline-block shadow-sm">{`{Person A}`}</span>, lease ref <span className="bg-[#5b46e8] text-white px-2 py-0.5 rounded-md font-mono font-medium text-xs inline-block shadow-sm">{`{Lease 1}`}</span>. You can call me on <span className="bg-[#5b46e8] text-white px-2 py-0.5 rounded-md font-mono font-medium text-xs inline-block shadow-sm">{`{Phone 1}`}</span>.
+                  {story.trim()
+                    ? redactedSegments.map((segment, index) =>
+                        segment.token ? (
+                          <span key={`${segment.text}-${index}`} className="bg-[#5b46e8] text-white px-2 py-0.5 rounded-md font-mono font-medium text-xs inline-block shadow-sm">
+                            {segment.text}
+                          </span>
+                        ) : (
+                          <React.Fragment key={`${segment.text}-${index}`}>{segment.text}</React.Fragment>
+                        ),
+                      )
+                    : "No story entered."}
                 </div>
                 <div className="pt-4 mt-4 flex items-center justify-between text-[#78767d] text-[13px] font-medium border-t border-[#f4f3f8]">
                   <div className="flex items-center gap-2">
@@ -253,9 +303,17 @@ function ScreenReview() {
               <span className="material-symbols-outlined text-[#5b46e8] text-[18px] shrink-0">verified_user</span>
               <span>Only substituted tokens leave your machine. Your personal names and references never leave this browser.</span>
             </div>
+            {approvalError && (
+              <p
+                className="w-full md:max-w-sm text-center md:text-right text-[13px] font-semibold text-[#8a3d3d]"
+                role="alert"
+              >
+                {approvalError}
+              </p>
+            )}
             <button
               className="w-full md:w-auto inline-flex items-center justify-center gap-2 px-7 py-3 rounded-full bg-[#161427] hover:bg-[#5b46e8] text-white text-[14px] font-semibold shadow-md shadow-[#161427]/10 transition-all hover:shadow-[#5b46e8]/30 cursor-pointer"
-              onClick={() => navigate('/generating')}
+              onClick={handleApprove}
               type="button"
             >
               <span>Approve and write letter</span>

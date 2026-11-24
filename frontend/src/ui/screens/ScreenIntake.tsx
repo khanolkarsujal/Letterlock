@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -6,12 +6,31 @@ import { useApp } from "../state/AppContext";
 import { defaultStory } from "../state/mockData";
 
 function ScreenIntake() {
-  const { story, setStory, disputeType, setDisputeType, entities } = useApp();
+  const {
+    story,
+    setStory,
+    disputeType,
+    setDisputeType,
+    entities,
+    detectionStatus,
+    detectionProgress,
+    detection,
+    detectionError,
+    detectStory,
+  } = useApp();
   const navigate = useNavigate();
   const [isInspecting, setIsInspecting] = useState(false);
 
   const wordCount = story.trim() ? story.trim().split(/\s+/).length : 0;
   const charCount = story.length;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void detectStory(story);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [story, detectStory]);
 
   const handleInspect = () => {
     setIsInspecting(true);
@@ -177,17 +196,50 @@ function ScreenIntake() {
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-[16px] text-[#5b46e8]">shield</span>
                     <span className="font-medium text-[#161427]">Detected details:</span>
-                    <span className="text-[#5b46e8] font-semibold">{entities.length} items protected locally</span>
+                    <span className="text-[#5b46e8] font-semibold">
+                      {entities.length} items found locally
+                    </span>
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="px-2.5 py-0.5 rounded-full bg-white text-[#5b46e8] font-mono text-[11px] font-medium border border-[#e5e0f5] shadow-xs">Address</span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-white text-[#5b46e8] font-mono text-[11px] font-medium border border-[#e5e0f5] shadow-xs">Landlord name</span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-white text-[#5b46e8] font-mono text-[11px] font-medium border border-[#e5e0f5] shadow-xs">Your name</span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-white text-[#5b46e8] font-mono text-[11px] font-medium border border-[#e5e0f5] shadow-xs">Phone & Ref #</span>
+                    {entities.slice(0, 4).map((entity) => (
+                      <span
+                        key={entity.id}
+                        className="px-2.5 py-0.5 rounded-full bg-white text-[#5b46e8] font-mono text-[11px] font-medium border border-[#e5e0f5] shadow-xs"
+                      >
+                        {entity.category}
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>
             </div>
+
+            <div className="flex items-center gap-2 text-xs text-[#6b6684]" aria-live="polite">
+              <span className="material-symbols-outlined text-[16px] text-[#5b46e8]">
+                {detectionStatus === "available"
+                  ? "check_circle"
+                  : detectionStatus === "preparing"
+                    ? "sync"
+                    : "warning"}
+              </span>
+              <span>
+                {detectionStatus === "available"
+                  ? "On-device detection is ready."
+                  : detectionStatus === "preparing"
+                    ? `Preparing on-device detection${detectionProgress === undefined ? "..." : ` (${Math.round(detectionProgress)}%)`}`
+                    : detection?.limited
+                      ? "Limited detection: local rules found structured details only. Review carefully."
+                      : "On-device detection is unavailable."}
+              </span>
+            </div>
+            {detectionError && (
+              <p
+                className="text-xs text-[#8a3d3d]"
+                role="alert"
+              >
+                {detectionError}
+              </p>
+            )}
 
             {/* Privacy Assurance & CTA Button */}
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-5 border-t border-[#f0ecf7]">

@@ -4,33 +4,12 @@ import Header from "../components/Header";
 import { useApp } from "../state/AppContext";
 
 export default function ScreenLetter() {
-  const { triggerToast, setShowWipeModal } = useApp();
+  const { triggerToast, setShowWipeModal, finalLetter, draftResult } = useApp();
   const navigate = useNavigate();
   const [showClearEverythingModal, setShowClearEverythingModal] = useState(false);
-
-  const letterPlainContent = `12 October 2026
-
-To: Mr Rao
-Landlord / Property Representative
-14 Oak Street
-Contact: 98765 43210
-Lease Reference: LS-20418
-
-Regarding: Formal Legal Demand: Immediate & Full Return of Security Deposit (£1,200.00)
-
-Dear Mr Rao,
-
-I am writing to formally demand the immediate return of my rental security deposit in the amount of £1,200.00, which has been unlawfully withheld following the lawful termination of my tenancy at 14 Oak Street on 3 June.
-
-Despite multiple attempts to contact you via telephone (98765 43210) and written messages regarding lease reference LS-20418, I have received no response, itemized deduction statement, or accounting of funds. Under applicable residential landlord-tenant statutory regulations, a landlord is obligated to return the security deposit in full or provide an itemized statement of lawful deductions within the statutory deadline.
-
-Because that statutory deadline has elapsed without explanation, notice, or return of funds, the retention of my £1,200.00 deposit constitutes an improper withholding under applicable state tenancy law.
-
-Please accept this letter as formal legal demand for the full return of £1,200.00 within seven (7) business days of receipt of this notice. If payment is not received in full by 19 October 2026, I reserve all statutory rights to initiate formal small claims proceedings, including claims for statutory damages, court filing costs, and applicable statutory interest.
-
-Sincerely,
-Priya Sharma
-Former Tenant, Tenancy Reference LS-20418`;
+  const letterPlainContent =
+    finalLetter ??
+    "No restored letter is available. Return to the review screen.";
 
   const handleCopy = () => {
     try {
@@ -210,39 +189,15 @@ Former Tenant, Tenancy Reference LS-20418`;
                     </div>
                   </div>
 
-                  <div className="mb-8">
-                    <span className="text-xs uppercase tracking-wider text-[#5f5c72] block mb-1">Subject</span>
-                    <div className="p-3.5 rounded-lg bg-[#ede8fc]/50 text-[#161427] font-bold text-base">
-                      Formal Legal Demand: Immediate &amp; Full Return of Security Deposit (<span className="text-[#5b46e8]">£1,200.00</span>)
+                  {finalLetter ? (
+                    <div className="text-base text-[#161427] leading-relaxed whitespace-pre-wrap">
+                      {finalLetter}
                     </div>
-                  </div>
-
-                  <div className="space-y-5 text-base text-[#161427] leading-relaxed">
-                    <p>Dear Mr Rao,</p>
-                    <p>
-                      I am writing to formally demand the immediate return of my rental security deposit in the amount of{" "}
-                      <strong className="font-bold text-[#5b46e8]">£1,200.00</strong>, which has been unlawfully withheld following the lawful termination of my tenancy at{" "}
-                      <strong>14 Oak Street</strong> on <strong>3 June</strong>.
-                    </p>
-                    <p>
-                      Despite multiple attempts to contact you via telephone (98765 43210) and written notices regarding lease reference{" "}
-                      <strong className="text-[#161427]">LS-20418</strong>, I have received no response, itemized deduction statement, or accounting of funds. Under applicable residential landlord-tenant regulations, statutory deposit protections require prompt return or formal justification within 10 days.
-                    </p>
-                    <p>
-                      Because that statutory deadline has elapsed without explanation, notice, or return of funds, the retention of my{" "}
-                      <strong className="text-[#5b46e8]">£1,200.00</strong> deposit constitutes an improper withholding under applicable state tenancy law.
-                    </p>
-                    <p>
-                      Please accept this letter as formal legal notice that payment of{" "}
-                      <strong className="text-[#5b46e8] font-bold">£1,200.00</strong> is required within seven (7) business days. If payment is not received in full by{" "}
-                      <strong className="text-[#161427]">19 October 2026</strong>, I reserve all statutory rights to initiate formal small claims proceedings, including claims for statutory penalties and court filing costs.
-                    </p>
-                    <div className="pt-6 mt-6 border-t border-[#eeedf2] flex flex-col gap-1">
-                      <span className="text-sm text-[#5f5c72]">Sincerely,</span>
-                      <span className="text-base text-[#161427] font-bold tracking-tight">Priya Sharma</span>
-                      <span className="text-xs text-[#5f5c72]">Former Tenant, Tenancy Reference LS-20418</span>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-[#fef2f2] border border-[#fee2e2] text-[#8a3d3d] text-sm" role="alert">
+                      No restored letter is available. Return to the review screen and approve the story again.
                     </div>
-                  </div>
+                  )}
 
                   <div className="mt-10 pt-5 border-t border-[#eeedf2] flex flex-wrap items-center justify-between gap-3 text-[#5f5c72]">
                     <div className="flex items-center gap-2 text-xs text-[#5b46e8] font-semibold">

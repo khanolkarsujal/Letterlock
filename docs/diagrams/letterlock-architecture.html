@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Letterlock · Hybrid Privacy Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper: #FAF9FE;
+      --color-paper-2: #F4F3F8;
+      --color-card: #FFFFFF;
+      --color-ink: #161427;
+      --color-muted: #5F5C72;
+      --color-soft: #78767D;
+      --color-rule: #E2DFEC;
+      --color-accent: #5B46E8;
+      --color-accent-tint: #EDE8FC;
+      --color-link: #35159B;
+      --color-error: #DC2626;
+      --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --font-serif: 'Instrument Serif', Georgia, serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    }
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      min-height: 100vh;
+      padding: 2.5rem 1.5rem;
+      color: var(--color-ink);
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      margin-bottom: 0.5rem;
+    }
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(2rem, 3.5vw + 1rem, 2.75rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: 0.5rem;
+      color: var(--color-ink);
+    }
+    .subtitle {
+      font-size: 0.95rem;
+      line-height: 1.55;
+      color: var(--color-muted);
+      max-width: 68ch;
+    }
+    .diagram-container {
+      background: var(--color-card);
+      border-radius: 12px;
+      border: 1px solid var(--color-rule);
+      box-shadow: 0 4px 20px -2px rgba(22, 20, 39, 0.05);
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg {
+      width: 100%;
+      min-width: 960px;
+      display: block;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1.75rem;
+    }
+    .card {
+      background: var(--color-card);
+      border-radius: 10px;
+      border: 1px solid var(--color-rule);
+      padding: 1.25rem;
+      box-shadow: 0 2px 10px rgba(22, 20, 39, 0.03);
+    }
+    .card .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--color-paper-2);
+    }
+    .card-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .card-dot.violet { background: var(--color-accent); }
+    .card-dot.indigo { background: var(--color-ink); }
+    .card-dot.muted { background: var(--color-muted); }
+    .card h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--color-ink);
+    }
+    .card p {
+      color: var(--color-muted);
+      font-size: 0.825rem;
+      line-height: 1.55;
+    }
+    .footer {
+      margin-top: 2rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--color-rule);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      color: var(--color-soft);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    @media print {
+      .diagram-container { overflow-x: visible; }
+      svg { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <p class="header-eyebrow">Hybrid AI Architecture · Diagram Design</p>
+      <h1>Letterlock: Secure Hybrid Privacy Boundary</h1>
+      <p class="subtitle">Client-only Chrome Web App leveraging on-device Gemini Nano 4 and local regex rules to isolate PII, dispatching only sanitized, placeholder-sanitized text to cloud LLMs via Firebase AI Logic.</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 960 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="letterlock-arch-title letterlock-arch-desc">
+        <title id="letterlock-arch-title">Letterlock Hybrid Architecture and Privacy Boundary</title>
+        <desc id="letterlock-arch-desc">Architecture diagram displaying on-device trust boundary, detection, redaction guardian, and Firebase AI Logic cloud boundary.</desc>
+
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5F5C72"/>
+          </marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5B46E8"/>
+          </marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#35159B"/>
+          </marker>
+        </defs>
+
+        <!-- Canvas Background -->
+        <rect width="100%" height="100%" fill="#FAF9FE"/>
+
+        <!-- ZONE 1: On-Device Browser Tab (Client Memory) -->
+        <rect x="28" y="28" width="604" height="420" rx="10"
+              fill="rgba(91,70,232,0.02)" stroke="#5B46E8" stroke-width="1.2" stroke-dasharray="6,4"/>
+        <rect x="44" y="22" width="220" height="15" rx="3" fill="#FAF9FE"/>
+        <text x="154" y="33" fill="#5B46E8" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="600"
+              text-anchor="middle" letter-spacing="0.14em">ON-DEVICE BOUNDARY (EPHEMERAL)</text>
+
+        <!-- ZONE 2: Cloud Services & Inference Boundary -->
+        <rect x="672" y="28" width="260" height="420" rx="10"
+              fill="rgba(22,20,39,0.02)" stroke="#78767D" stroke-width="1.2" stroke-dasharray="6,4"/>
+        <rect x="696" y="22" width="208" height="15" rx="3" fill="#FAF9FE"/>
+        <text x="800" y="33" fill="#5F5C72" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="600"
+              text-anchor="middle" letter-spacing="0.14em">EXTERNAL CLOUD BOUNDARY</text>
+
+        <!-- ================= CONNECTORS (Drawn Before Boxes) ================= -->
+        <!-- UI Intake to Detection (x1=160, y1=160 -> x2=232, y2=160) -->
+        <line x1="160" y1="160" x2="232" y2="160" stroke="#5F5C72" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- Detection to Redaction Engine (x1=372, y1=160 -> x2=436, y2=160) -->
+        <line x1="372" y1="160" x2="436" y2="160" stroke="#5F5C72" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- Redaction to Review Screen (x1=506, y1=208 -> x2=506, y2=276) -->
+        <line x1="506" y1="208" x2="506" y2="276" stroke="#5B46E8" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+
+        <!-- Review Approval back to Redaction Gate (x1=460, y1=276 -> x2=460, y2=208) -->
+        <line x1="460" y1="276" x2="460" y2="208" stroke="#5B46E8" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow-accent)"/>
+
+        <!-- Pre-send Check Passed: Redaction to Cloud LLM (x1=576, y1=160 -> x2=708, y2=160) -->
+        <line x1="576" y1="160" x2="708" y2="160" stroke="#35159B" stroke-width="1.4" marker-end="url(#arrow-link)"/>
+
+        <!-- Cloud LLM Drafting Return to Redaction Restoration (Elbow: x1=708, y1=190 -> x2=576, y2=340) -->
+        <path d="M 708,190 H 648 Q 640,190 640,198 V 332 Q 640,340 632,340 H 576"
+              fill="none" stroke="#5F5C72" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+        <!-- Redaction Restored Letter to Result UI (x1=436, y1=340 -> x2=160, y2=340) -->
+        <line x1="436" y1="340" x2="160" y2="340" stroke="#5B46E8" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+
+        <!-- App Check Attestation to Firebase Logic (x1=800, y1=300 -> x2=800, y2=212) -->
+        <line x1="800" y1="300" x2="800" y2="212" stroke="#5F5C72" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+        <!-- ================= CONNECTOR LABELS (With Opaque Masks) ================= -->
+        <!-- Label: Raw Story -->
+        <rect x="176" y="142" width="44" height="12" rx="2" fill="#FAF9FE"/>
+        <text x="198" y="151" fill="#5F5C72" font-size="8" font-family="'JetBrains Mono', monospace" text-anchor="middle" letter-spacing="0.06em">INPUT</text>
+
+        <!-- Label: PII Entities -->
+        <rect x="384" y="142" width="40" height="12" rx="2" fill="#FAF9FE"/>
+        <text x="404" y="151" fill="#5F5C72" font-size="8" font-family="'JetBrains Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ENTITIES</text>
+
+        <!-- Label: Sanitized Outbound -->
+        <rect x="604" y="142" width="76" height="12" rx="2" fill="#FAF9FE"/>
+        <text x="642" y="151" fill="#35159B" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.06em">ANONYMIZED</text>
+
+        <!-- Label: Returned Draft -->
+        <rect x="620" y="248" width="56" height="12" rx="2" fill="#FAF9FE"/>
+        <text x="648" y="257" fill="#5F5C72" font-size="8" font-family="'JetBrains Mono', monospace" text-anchor="middle" letter-spacing="0.06em">RAW DRAFT</text>
+
+        <!-- Label: Restored Letter -->
+        <rect x="256" y="322" width="84" height="12" rx="2" fill="#FAF9FE"/>
+        <text x="298" y="331" fill="#5B46E8" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.06em">RESTORED LETTER</text>
+
+        <!-- ================= NODES ================= -->
+
+        <!-- NODE 1: User Intake UI -->
+        <g id="node-intake">
+          <rect x="52" y="112" width="108" height="96" rx="6" fill="#FAF9FE"/>
+          <rect x="52" y="112" width="108" height="96" rx="6" fill="#FFFFFF" stroke="#E2DFEC" stroke-width="1"/>
+          <rect x="60" y="120" width="34" height="12" rx="2" fill="transparent" stroke="#78767D" stroke-width="0.8"/>
+          <text x="77" y="129" fill="#5F5C72" font-size="7" font-family="'JetBrains Mono', monospace" text-anchor="middle" letter-spacing="0.08em">VIEW</text>
+          <text x="106" y="152" fill="#161427" font-size="12" font-weight="700" font-family="'Plus Jakarta Sans', sans-serif" text-anchor="middle">Intake Screen</text>
+          <text x="106" y="172" fill="#5F5C72" font-size="9" font-family="'JetBrains Mono', monospace" text-anchor="middle">src/ui/Intake</text>
+          <text x="106" y="188" fill="#78767D" font-size="8" font-family="'JetBrains Mono', monospace" text-anchor="middle">MemoryRouter</text>
+        </g>
+
+        <!-- NODE 2: Detection Engine (Focal Node 1: On-Device AI) -->
+        <g id="node-detection">
+          <rect x="232" y="112" width="140" height="96" rx="6" fill="#FAF9FE"/>
+          <rect x="232" y="112" width="140" height="96" rx="6" fill="#F0ECFC" stroke="#5B46E8" stroke-width="1.2"/>
+          <rect x="240" y="120" width="54" height="12" rx="2" fill="#EDE8FC" stroke="#5B46E8" stroke-width="0.8"/>
+          <text x="267" y="129" fill="#5B46E8" font-size="7" font-family="'JetBrains Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">ON-DEVICE</text>
+          <text x="302" y="152" fill="#161427" font-size="12" font-weight="700" font-family="'Plus Jakarta Sans', sans-serif" text-anchor="middle">Detection Engine</text>
+          <text x="302" y="172" fill="#5B46E8" font-size="9" font-family="'JetBrains Mono', monospace" font-weight="600" text-anchor="middle">Gemini Nano 4</text>
+          <text x="302" y="188" fill="#5F5C72" font-size="8" font-family="'JetBrains Mono', monospace" text-anchor="middle">+ Local Regex Fallback</text>
+        </g>
+
+        <!-- NODE 3: Privacy Redaction Guardian (Focal Node 2: Security & Mapping Gate) -->
+        <g id="node-redaction">
+          <rect x="436" y="112" width="140" height="96" rx="6" fill="#FAF9FE"/>
+          <rect x="436" y="112" width="140" height="96" rx="6" fill="#FFFFFF" stroke="#161427" stroke-width="1.4"/>
+          <rect x="444" y="120" width="52" height="12" rx="2" fill="#161427"/>
+          <text x="470" y="129" fill="#FFFFFF" font-size="7" font-family="'JetBrains Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">GUARDIAN</text>
+          <text x="506" y="152" fill="#161427" font-size="12" font-weight="700" font-family="'Plus Jakarta Sans', sans-serif" text-anchor="middle">Redaction Core</text>
+          <text x="506" y="172" fill="#5F5C72" font-size="9" font-family="'JetBrains Mono', monospace" text-anchor="middle">PlaceholderMap</text>
+          <text x="506" y="188" fill="#161427" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="600" text-anchor="middle">Pre-Send Leak Check</text>
+        </g>
+
+        <!-- NODE 4: Interactive Review & Approval Gate -->
+        <g id="node-review">
+          <rect x="436" y="276" width="140" height="96" rx="6" fill="#FAF9FE"/>
+          <rect x="436" y="276" width="140" height="96" rx="6" fill="#FFFFFF" stroke="#E2DFEC" stroke-width="1"/>
+          <rect x="444" y="284" width="38" height="12" rx="2" fill="transparent" stroke="#78767D" stroke-width="0.8"/>
+          <text x="463" y="293" fill="#5F5C72" font-size="7" font-family="'JetBrains Mono', monospace" text-anchor="middle" letter-spacing="0.08em">GATE</text>
+          <text x="506" y="316" fill="#161427" font-size="12" font-weight="700" font-family="'Plus Jakarta Sans', sans-serif" text-anchor="middle">Review UI</text>
+          <text x="506" y="336" fill="#5F5C72" font-size="9" font-family="'JetBrains Mono', monospace" text-anchor="middle">User Inspection</text>
+          <text x="506" y="352" fill="#5B46E8" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="600" text-anchor="middle">Explicit User Consent</text>
+        </g>
+
+        <!-- NODE 5: Final Finished Letter & Badge UI -->
+        <g id="node-letter">
+          <rect x="52" y="292" width="108" height="96" rx="6" fill="#FAF9FE"/>
+          <rect x="52" y="292" width="108" height="96" rx="6" fill="#FFFFFF" stroke="#E2DFEC" stroke-width="1"/>
+          <rect x="60" y="300" width="38" height="12" rx="2" fill="transparent" stroke="#78767D" stroke-width="0.8"/>
+          <text x="79" y="309" fill="#5F5C72" font-size="7" font-family="'JetBrains Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OUTPUT</text>
+          <text x="106" y="332" fill="#161427" font-size="12" font-weight="700" font-family="'Plus Jakarta Sans', sans-serif" text-anchor="middle">Letter Screen</text>
+          <text x="106" y="352" fill="#5B46E8" font-size="9" font-family="'JetBrains Mono', monospace" text-anchor="middle">Restored Details</text>
+          <text x="106" y="368" fill="#161427" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="600" text-anchor="middle">Local/Cloud Badge</text>
+        </g>
+
+        <!-- NODE 6: Cloud Inference (Firebase AI Logic & LLM) -->
+        <g id="node-cloud-llm">
+          <rect x="708" y="112" width="188" height="100" rx="6" fill="#FAF9FE"/>
+          <rect x="708" y="112" width="188" height="100" rx="6" fill="#161427" stroke="#161427" stroke-width="1.2"/>
+          <rect x="716" y="120" width="58" height="12" rx="2" fill="#2D2945"/>
+          <text x="745" y="129" fill="#C8BEFF" font-size="7" font-family="'JetBrains Mono', monospace" font-weight="600" text-anchor="middle" letter-spacing="0.08em">CLOUD API</text>
+          <text x="802" y="152" fill="#FFFFFF" font-size="12" font-weight="700" font-family="'Plus Jakarta Sans', sans-serif" text-anchor="middle">Firebase AI Logic</text>
+          <text x="802" y="172" fill="#C8BEFF" font-size="9" font-family="'JetBrains Mono', monospace" text-anchor="middle">Cloud LLM Drafting</text>
+          <text x="802" y="188" fill="#C8C3DE" font-size="8" font-family="'JetBrains Mono', monospace" text-anchor="middle">Returns Placeholders Intact</text>
+        </g>
+
+        <!-- NODE 7: Firebase App Check Security Service -->
+        <g id="node-app-check">
+          <rect x="724" y="300" width="156" height="76" rx="6" fill="#FAF9FE"/>
+          <rect x="724" y="300" width="156" height="76" rx="6" fill="#FFFFFF" stroke="#78767D" stroke-width="1"/>
+          <rect x="732" y="308" width="52" height="12" rx="2" fill="transparent" stroke="#78767D" stroke-width="0.8"/>
+          <text x="758" y="317" fill="#5F5C72" font-size="7" font-family="'JetBrains Mono', monospace" text-anchor="middle" letter-spacing="0.08em">SECURITY</text>
+          <text x="802" y="340" fill="#161427" font-size="12" font-weight="700" font-family="'Plus Jakarta Sans', sans-serif" text-anchor="middle">Firebase App Check</text>
+          <text x="802" y="358" fill="#5F5C72" font-size="9" font-family="'JetBrains Mono', monospace" text-anchor="middle">Debug / Attestation Token</text>
+        </g>
+
+        <!-- ================= LEGEND STRIP (Horizontal at Bottom) ================= -->
+        <line x1="28" y1="468" x2="932" y2="468" stroke="#E2DFEC" stroke-width="0.8"/>
+        <text x="32" y="488" fill="#5F5C72" font-size="8" font-family="'JetBrains Mono', monospace" font-weight="600" letter-spacing="0.14em">LEGEND</text>
+
+        <!-- Legend Item 1 -->
+        <circle cx="120" cy="485" r="4" fill="#5B46E8"/>
+        <text x="132" y="488" fill="#161427" font-size="9" font-family="'Plus Jakarta Sans', sans-serif" font-weight="600">On-Device Execution (Gemini Nano / Local Memory)</text>
+
+        <!-- Legend Item 2 -->
+        <circle cx="440" cy="485" r="4" fill="#161427"/>
+        <text x="452" y="488" fill="#161427" font-size="9" font-family="'Plus Jakarta Sans', sans-serif" font-weight="600">Privacy Guardian &amp; Verification Gates</text>
+
+        <!-- Legend Item 3 -->
+        <circle cx="720" cy="485" r="4" fill="#5F5C72"/>
+        <text x="732" y="488" fill="#161427" font-size="9" font-family="'Plus Jakarta Sans', sans-serif" font-weight="600">Cloud Model (Placeholders Only)</text>
+      </svg>
+    </div>
+
+    <!-- Editorial Architectural Takeaways -->
+    <div class="cards">
+      <div class="card">
+        <p class="eyebrow">Local Trust Boundary</p>
+        <div class="card-header">
+          <div class="card-dot violet"></div>
+          <h3>Zero-Knowledge Storage</h3>
+        </div>
+        <p>Raw narrative text and sensitive entity maps are strictly ephemeral in the browser tab's RAM. No IndexedDB, cookies, localStorage, or remote telemetry ever touch the story.</p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Privacy Guardian</p>
+        <div class="card-header">
+          <div class="card-dot indigo"></div>
+          <h3>Pre-Send & Return Verification</h3>
+        </div>
+        <p>Before any network dispatch occurs, outgoing text is validated to guarantee zero unredacted values remain. Incoming drafts are rejected if placeholders were dropped or mutated.</p>
+      </div>
+
+      <div class="card">
+        <p class="eyebrow">Cloud Drafting</p>
+        <div class="card-header">
+          <div class="card-dot muted"></div>
+          <h3>Firebase AI Logic Ingress</h3>
+        </div>
+        <p>The cloud model only receives sanitized, structural dispute templates. After drafting, original details are safely restored locally before presentation to the user.</p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>Letterlock · #BuildHybridAI 2026 Submission</span>
+      <span>Vite + React 18 + Firebase AI Logic + Gemini Nano 4</span>
+      <span>Specification: architecture.md</span>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,16 +1,37 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
+import { useApp } from "../state/AppContext";
 
 export default function ScreenGenerating() {
   const navigate = useNavigate();
+  const {
+    approvedStory,
+    draftStatus,
+    draftError,
+    startCloudDraft,
+  } = useApp();
+  const started = useRef(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    if (started.current) return;
+    started.current = true;
+
+    if (!approvedStory) {
+      navigate("/review");
+      return;
+    }
+
+    void startCloudDraft();
+  }, [approvedStory, navigate, startCloudDraft]);
+
+  useEffect(() => {
+    if (draftStatus === "success") {
       navigate("/letter");
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [navigate]);
+    } else if (draftStatus === "error") {
+      navigate("/connection-error");
+    }
+  }, [draftStatus, navigate]);
 
   return (
     <div className="flex flex-col min-h-screen">
