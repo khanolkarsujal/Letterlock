@@ -17,13 +17,13 @@ import {
   entitiesFromRedactionMap,
 } from "./detectionPresentation";
 import type { ApprovedOutboundText, PlaceholderKind } from "../../redaction";
-import { RedactionError, RedactionMap } from "../../redaction";
+import { extractPlaceholders, RedactionError, RedactionMap } from "../../redaction";
 import {
   draftLetterInCloud,
   prewarmCloudDrafting,
   type CloudDraftResult,
 } from "../../inference/cloudDrafting";
-import type { DisputeType } from "../../prompts";
+import { classifyDisputeType } from "../../prompts";
 
 // Shape of the context – matches the prototype exactly
 export interface AppState {
@@ -44,6 +44,7 @@ export interface AppState {
   detectionStatus: OnDeviceStatus;
   detectionProgress: number | undefined;
   detectionError: string | null;
+  isDetecting: boolean;
   redactionMap: RedactionMap;
   redactedStory: ApprovedOutboundText | null;
   approvedStory: ApprovedOutboundText | null;
@@ -54,7 +55,7 @@ export interface AppState {
   finalLetter: string | null;
   startCloudDraft: () => Promise<boolean>;
   cancelCloudDraft: () => void;
-  detectStory: (text: string) => Promise<void>;
+  detectStory: (text: string) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -70,6 +71,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     useState<OnDeviceStatus>("preparing");
   const [detectionProgress, setDetectionProgress] = useState<number>();
   const [detectionError, setDetectionError] = useState<string | null>(null);
+  const [isDetecting, setIsDetecting] = useState<boolean>(false);
   const [redactionMap, setRedactionMap] = useState<RedactionMap>(
     () => new RedactionMap(),
   );
@@ -152,12 +154,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setDraftResult(null);
     setFinalLetter(null);
 
-    const disputePrompt: DisputeType =
-      disputeType === "insurance"
-        ? "insurance_claim"
-        : disputeType === "medical"
-          ? "medical_bill"
-          : "rental_deposit";
+    const disputePrompt = classifyDisputeType(approvedStory, disputeType);
 
     try {
       const result = await draftLetterInCloud(
@@ -201,10 +198,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      setDraftResult(result);
-      setFinalLetter(
-        redactionMapRef.current.restore(result.draftWithPlaceholders),
+      const restored = redactionMapRef.current.restore(
+        result.draftWithPlaceholders,
       );
+      if (extractPlaceholders(restored).length > 0) {
+        setDraftStatus("error");
+        setDraftError(
+          "Some private placeholders could not be restored. No letter was finalized.",
+        );
+        return false;
+      }
+
+      setDraftResult(result);
+      setFinalLetter(restored);
       setDraftStatus("success");
       return true;
     } catch (error: unknown) {
@@ -240,6 +246,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setDetectionStatus("preparing");
     setDetectionProgress(undefined);
     setDetectionError(null);
+    setIsDetecting(false);
     setApprovedStory(null);
     setDraftStatus("idle");
     setDraftError(null);
@@ -279,11 +286,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return true;
   };
 
-  const detectStory = useCallback(async (text: string) => {
+  const detectStory = useCallback(async (text: string): Promise<boolean> => {
     const requestId = detectionRequest.current + 1;
     detectionRequest.current = requestId;
 
     if (!text.trim()) {
+      setIsDetecting(false);
       setDetection({
         values: [],
         status: "unavailable",
@@ -297,9 +305,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       redactionMapRef.current.clear();
       replaceRedactionMap(new RedactionMap());
       setRedactedStory(null);
-      return;
+      return true;
     }
 
+    setIsDetecting(true);
     setDetectionStatus("preparing");
     setDetectionProgress(undefined);
     setDetectionError(null);
@@ -313,7 +322,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         },
       });
 
-      if (detectionRequest.current !== requestId) return;
+      if (detectionRequest.current !== requestId) return false;
 
       setDetection(result);
       setDetectionStatus(result.status);
@@ -324,21 +333,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setEntities([...next.entities]);
       setRedactedStory(next.map.redact(text));
       setApprovedStory(null);
+      return true;
     } catch {
-      if (detectionRequest.current !== requestId) return;
+      if (detectionRequest.current !== requestId) return false;
 
       setDetection(null);
       setEntities([]);
       setDetectionStatus("unavailable");
       setDetectionProgress(undefined);
       setDetectionError(
-        "Private-detail detection failed. Review the story carefully before continuing.",
+        "We couldn't scan your story for private details right now. Please try again.",
       );
       redactionMapRef.current.clear();
       replaceRedactionMap(new RedactionMap());
       setRedactedStory(null);
       setApprovedStory(null);
-      setEntities([]);
+      return false;
+    } finally {
+      if (detectionRequest.current === requestId) {
+        setIsDetecting(false);
+      }
     }
   }, []);
 
@@ -362,6 +376,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         detectionStatus,
         detectionProgress,
         detectionError,
+        isDetecting,
         redactionMap,
         redactedStory,
         approvedStory,

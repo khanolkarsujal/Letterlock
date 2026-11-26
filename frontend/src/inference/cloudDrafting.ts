@@ -8,7 +8,7 @@ import {
 } from "firebase/ai";
 import { getFirebaseAi } from "./firebase";
 import { getSystemPrompt, type DisputeType } from "../prompts";
-import type { ApprovedOutboundText } from "../redaction";
+import { extractPlaceholders, type ApprovedOutboundText } from "../redaction";
 
 export type { DisputeType };
 
@@ -48,6 +48,7 @@ const CLOUD_MODEL = "gemini-3.5-flash-lite";
 
 /** Letter drafting can take longer than an interactive UI request. */
 const CLOUD_TIMEOUT_MS = 30_000;
+export const CLOUD_TIMEOUT_SECONDS = CLOUD_TIMEOUT_MS / 1000;
 
 let cloudModel: GenerativeModel | null = null;
 
@@ -92,19 +93,27 @@ export interface CloudDraftOptions {
  * @throws {CloudDraftError} on network, quota, timeout, cancel, content filter,
  *   empty response or unknown failures.
  */
+function wrapUntrustedStory(anonymizedStory: ApprovedOutboundText): string {
+  const escaped = anonymizedStory
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+  return `<UNTRUSTED_USER_STORY>\n${escaped}\n</UNTRUSTED_USER_STORY>`;
+}
+
 export async function draftLetterInCloud(
   anonymizedStory: ApprovedOutboundText,
   disputeType: DisputeType,
   options: CloudDraftOptions = {},
 ): Promise<CloudDraftResult> {
   try {
+    const allowedPlaceholders = extractPlaceholders(anonymizedStory);
     const result = await getCloudModel().generateContent(
       {
-        systemInstruction: getSystemPrompt(disputeType),
+        systemInstruction: getSystemPrompt(disputeType, allowedPlaceholders),
         contents: [
           {
             role: "user",
-            parts: [{ type: "text", text: anonymizedStory }],
+            parts: [{ type: "text", text: wrapUntrustedStory(anonymizedStory) }],
           },
         ],
       },

@@ -8,7 +8,11 @@ const envVars = z.object({
   VITE_FIREBASE_MESSAGING_SENDER_ID: z.string().min(1),
   VITE_FIREBASE_APP_ID: z.string().min(1),
   VITE_FIREBASE_MEASUREMENT_ID: z.string().optional(),
-  VITE_FIREBASE_APPCHECK_SITE_KEY: z.string().min(1).optional(),
+  VITE_FIREBASE_APPCHECK_SITE_KEY: z
+    .string()
+    .trim()
+    .optional()
+    .transform((val) => (val && val.length > 0 ? val : undefined)),
 });
 
 const parsedEnv = envVars.safeParse(import.meta.env);

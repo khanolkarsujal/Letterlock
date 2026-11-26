@@ -220,6 +220,15 @@ export function buildRedactionMap(
  * original value survives outside the tokens, the call throws and no approved
  * text is produced.
  */
+function buildValuePattern(value: string): string {
+  const escaped = escapeRegExp(value);
+  const firstChar = value[0] ?? "";
+  const lastChar = value[value.length - 1] ?? "";
+  const prefix = /\p{L}|\p{N}/u.test(firstChar) ? "(?<![\\p{L}\\p{N}])" : "";
+  const suffix = /\p{L}|\p{N}/u.test(lastChar) ? "(?![\\p{L}\\p{N}])" : "";
+  return `${prefix}${escaped}${suffix}`;
+}
+
 export function redactStory(
   story: string,
   entries: readonly PlaceholderEntry[],
@@ -237,8 +246,8 @@ export function redactStory(
     ordered.map((entry) => [normalizeKey(entry.value), entry.token]),
   );
   const pattern = new RegExp(
-    ordered.map((entry) => escapeRegExp(entry.value)).join("|"),
-    "gi",
+    ordered.map((entry) => buildValuePattern(entry.value)).join("|"),
+    "giu",
   );
 
   const redacted = story.replace(pattern, (match) => {
@@ -261,10 +270,11 @@ export function findLeaks(
   entries: readonly PlaceholderEntry[],
 ): string[] {
   const withoutTokens = text.replace(createTokenRegex(), " ");
-  const haystack = withoutTokens.toLocaleLowerCase();
 
   return entries
-    .filter((entry) => haystack.includes(entry.value.toLocaleLowerCase()))
+    .filter((entry) =>
+      new RegExp(buildValuePattern(entry.value), "iu").test(withoutTokens),
+    )
     .map((entry) => entry.value);
 }
 
@@ -276,7 +286,8 @@ export function extractPlaceholders(text: string): string[] {
 
 /**
  * Invariant: a returned letter is accepted only if it contains every
- * placeholder from the approved text and no placeholder the app cannot
+ * placeholder from the approved text and no placeholder (including modified,
+ * adjacent, unmatched, or corrupted curly-brace tokens) that the app cannot
  * restore.
  */
 export function checkReturnedPlaceholders(
@@ -286,8 +297,25 @@ export function checkReturnedPlaceholders(
   const approved = new Set(extractPlaceholders(approvedText));
   const returned = new Set(extractPlaceholders(returnedLetter));
 
+  let residual = returnedLetter;
+  for (const token of approved) {
+    residual = residual.split(token).join(" ");
+  }
+
+  const allBraceTokens = returnedLetter.match(/\{[^}\n]{1,40}\}/g) ?? [];
+  for (const token of allBraceTokens) {
+    returned.add(token);
+  }
+
   const missing = [...approved].filter((token) => !returned.has(token));
   const unexpected = [...returned].filter((token) => !approved.has(token));
+
+  if (
+    unexpected.length === 0 &&
+    (residual.includes("{") || residual.includes("}"))
+  ) {
+    unexpected.push("{malformed}");
+  }
 
   return {
     ok: missing.length === 0 && unexpected.length === 0,

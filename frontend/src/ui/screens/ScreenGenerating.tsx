@@ -8,7 +8,7 @@ export default function ScreenGenerating() {
   const {
     approvedStory,
     draftStatus,
-    draftError,
+    entities,
     startCloudDraft,
   } = useApp();
   const started = useRef(false);
@@ -101,26 +101,8 @@ export default function ScreenGenerating() {
                   </span>
                 </div>
                 <div className="space-y-3 pt-4 text-[14px] leading-relaxed text-[#161427]/90">
-                  <div className="text-[#78767d] text-[13px] space-y-1">
-                    <p>
-                      TO: <span className="bg-[#5b46e8] text-white px-2 py-0.5 rounded-md text-[12px] font-semibold">{`{Person B}`}</span>
-                    </p>
-                    <p>
-                      REGARDING: Residential Tenancy at <span className="bg-[#5b46e8] text-white px-2 py-0.5 rounded-md text-[12px] font-semibold">{`{Address 1}`}</span>
-                    </p>
-                  </div>
-                  <p className="font-semibold text-[#161427] pt-2">
-                    RE: Formal Demand for Return of Security Deposit
-                  </p>
-                  <p className="text-[#47464c]">
-                    Please treat this letter as a formal legal notice requesting the prompt refund of my rental deposit totaling
-                    <span className="inline-block bg-[#5b46e8] text-white px-2 py-0.5 rounded-md text-[12px] font-semibold">{`{Amount 1}`}</span>. 
-                    The tenancy concluded on
-                    <span className="inline-block bg-[#5b46e8] text-white px-2 py-0.5 rounded-md text-[12px] font-semibold">{`{Date 1}`}</span> 
-                    with keys returned and a signed handover checklist confirming property was left clean and intact.
-                  </p>
-                  <p className="text-[#47464c]">
-                    Under local tenancy regulations, statutory deposit protections require written justification and prompt release within 10 days. I request written confirmation of the transfer initiation to my account
+                  <p className="text-[#47464c] whitespace-pre-wrap">
+                    {approvedStory ?? "Preparing anonymized story..."}
                     <span className="inline-block w-1.5 h-4 bg-[#5b46e8] ml-1 align-middle animate-pulse" />
                   </p>
                 </div>
@@ -176,38 +158,27 @@ export default function ScreenGenerating() {
                     <span className="material-symbols-outlined text-[#5b46e8] text-[20px]">verified_user</span>
                     What stayed on your computer
                   </h3>
-                  <span className="text-[11px] font-bold text-[#5b46e8] bg-[#ede8fc] px-2.5 py-0.5 rounded-full">4 Locked</span>
+                  <span className="text-[11px] font-bold text-[#5b46e8] bg-[#ede8fc] px-2.5 py-0.5 rounded-full">
+                    {entities.length} Locked
+                  </span>
                 </div>
 
                 <div className="space-y-2.5">
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#faf9fe] border border-[#ece8f6]">
-                    <div className="flex flex-col">
-                      <span className="text-[11px] uppercase font-bold text-[#78767d] tracking-wider">Tenant Name</span>
-                      <span className="text-[14px] font-semibold text-[#161427]">Priya Sharma</span>
+                  {entities.length === 0 ? (
+                    <div className="p-3 rounded-xl bg-[#faf9fe] border border-[#ece8f6] text-[13px] text-[#78767d]">
+                      No private details were locked for this story.
                     </div>
-                    <span className="material-symbols-outlined text-[#5b46e8] text-[18px]">lock</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#faf9fe] border border-[#ece8f6]">
-                    <div className="flex flex-col">
-                      <span className="text-[11px] uppercase font-bold text-[#78767d] tracking-wider">Rental Property</span>
-                      <span className="text-[14px] font-semibold text-[#161427]">14 Oak Street, Apt 3B</span>
-                    </div>
-                    <span className="material-symbols-outlined text-[#5b46e8] text-[18px]">lock</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#faf9fe] border border-[#ece8f6]">
-                    <div className="flex flex-col">
-                      <span className="text-[11px] uppercase font-bold text-[#78767d] tracking-wider">Landlord / Recipient</span>
-                      <span className="text-[14px] font-semibold text-[#161427]">Mr Rao</span>
-                    </div>
-                    <span className="material-symbols-outlined text-[#5b46e8] text-[18px]">lock</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#faf9fe] border border-[#ece8f6]">
-                    <div className="flex flex-col">
-                      <span className="text-[11px] uppercase font-bold text-[#78767d] tracking-wider">Withheld Amount</span>
-                      <span className="text-[14px] font-semibold text-[#161427]">£1,200.00</span>
-                    </div>
-                    <span className="material-symbols-outlined text-[#5b46e8] text-[18px]">lock</span>
-                  </div>
+                  ) : (
+                    entities.slice(0, 4).map((entity) => (
+                      <div key={entity.id} className="flex items-center justify-between p-3 rounded-xl bg-[#faf9fe] border border-[#ece8f6]">
+                        <div className="flex flex-col">
+                          <span className="text-[11px] uppercase font-bold text-[#78767d] tracking-wider">{entity.category}</span>
+                          <span className="text-[14px] font-semibold text-[#161427]">{entity.text}</span>
+                        </div>
+                        <span className="material-symbols-outlined text-[#5b46e8] text-[18px]">lock</span>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 <div className="p-4 rounded-2xl bg-[#ede8fc]/50 border border-[#ece8f6] mt-3">

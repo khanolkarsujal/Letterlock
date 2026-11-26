@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -11,33 +11,16 @@ function ScreenIntake() {
     setStory,
     disputeType,
     setDisputeType,
-    entities,
-    detectionStatus,
-    detectionProgress,
-    detection,
-    detectionError,
     detectStory,
   } = useApp();
   const navigate = useNavigate();
-  const [isInspecting, setIsInspecting] = useState(false);
 
   const wordCount = story.trim() ? story.trim().split(/\s+/).length : 0;
   const charCount = story.length;
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void detectStory(story);
-    }, 350);
-
-    return () => window.clearTimeout(timer);
-  }, [story, detectStory]);
-
   const handleInspect = () => {
-    setIsInspecting(true);
-    setTimeout(() => {
-      setIsInspecting(false);
-      navigate("/scan");
-    }, 600);
+    void detectStory(story);
+    navigate("/scan");
   };
 
   return (
@@ -195,51 +178,19 @@ function ScreenIntake() {
                 <div className="bg-[#f2effa] px-4 py-2.5 border-t border-[#e8e4f3] flex flex-wrap items-center justify-between gap-2.5 text-xs">
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-[16px] text-[#5b46e8]">shield</span>
-                    <span className="font-medium text-[#161427]">Detected details:</span>
+                    <span className="font-medium text-[#161427]">Local protection:</span>
                     <span className="text-[#5b46e8] font-semibold">
-                      {entities.length} items found locally
+                      Private details will be scanned on your device next
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {entities.slice(0, 4).map((entity) => (
-                      <span
-                        key={entity.id}
-                        className="px-2.5 py-0.5 rounded-full bg-white text-[#5b46e8] font-mono text-[11px] font-medium border border-[#e5e0f5] shadow-xs"
-                      >
-                        {entity.category}
-                      </span>
-                    ))}
+                    <span className="px-2.5 py-0.5 rounded-full bg-white text-[#5b46e8] font-mono text-[11px] font-medium border border-[#e5e0f5] shadow-xs">Address</span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-white text-[#5b46e8] font-mono text-[11px] font-medium border border-[#e5e0f5] shadow-xs">Name</span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-white text-[#5b46e8] font-mono text-[11px] font-medium border border-[#e5e0f5] shadow-xs">Phone &amp; Ref #</span>
                   </div>
                 </div>
               </div>
             </div>
-
-            <div className="flex items-center gap-2 text-xs text-[#6b6684]" aria-live="polite">
-              <span className="material-symbols-outlined text-[16px] text-[#5b46e8]">
-                {detectionStatus === "available"
-                  ? "check_circle"
-                  : detectionStatus === "preparing"
-                    ? "sync"
-                    : "warning"}
-              </span>
-              <span>
-                {detectionStatus === "available"
-                  ? "On-device detection is ready."
-                  : detectionStatus === "preparing"
-                    ? `Preparing on-device detection${detectionProgress === undefined ? "..." : ` (${Math.round(detectionProgress)}%)`}`
-                    : detection?.limited
-                      ? "Limited detection: local rules found structured details only. Review carefully."
-                      : "On-device detection is unavailable."}
-              </span>
-            </div>
-            {detectionError && (
-              <p
-                className="text-xs text-[#8a3d3d]"
-                role="alert"
-              >
-                {detectionError}
-              </p>
-            )}
 
             {/* Privacy Assurance & CTA Button */}
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-5 border-t border-[#f0ecf7]">
@@ -254,22 +205,12 @@ function ScreenIntake() {
 
               <button
                 className="w-full sm:w-auto px-7 py-3.5 rounded-full bg-[#161427] text-white hover:bg-[#272346] hover:shadow-[0_8px_20px_rgba(22,20,39,0.18)] active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 shadow-sm font-semibold text-sm cursor-pointer shrink-0"
-                disabled={isInspecting}
                 onClick={handleInspect}
                 type="button"
               >
-                {isInspecting ? (
-                  <React.Fragment>
-                    <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
-                    <span>Parsing Sensitive Entities...</span>
-                  </React.Fragment>
-                ) : (
-                  <React.Fragment>
-                    <span className="material-symbols-outlined text-[18px]">fingerprint</span>
-                    <span>Find private details</span>
-                    <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-                  </React.Fragment>
-                )}
+                <span className="material-symbols-outlined text-[18px]">fingerprint</span>
+                <span>Find private details</span>
+                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
               </button>
             </div>
           </div>

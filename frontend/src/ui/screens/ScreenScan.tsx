@@ -6,7 +6,7 @@ import { useApp } from '../state/AppContext';
 
 function ScreenScan() {
   const navigate = useNavigate();
-  const { entities } = useApp();
+  const { entities, story, isDetecting, detectionError, detectStory } = useApp();
   const [progress, setProgress] = useState(88);
 
   useEffect(() => {
@@ -19,6 +19,11 @@ function ScreenScan() {
     }, 500);
     return () => clearInterval(interval);
   }, []);
+
+  const handleRetryDetection = () => {
+    if (isDetecting) return;
+    void detectStory(story);
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -76,34 +81,83 @@ function ScreenScan() {
               {/* Live Transformation vs Scan Progress */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 {/* Left: Transformation List */}
-                <div className="lg:col-span-7 bg-white rounded-xl p-6 sm:p-8 shadow-xl flex flex-col gap-6">
-                  <div className="flex items-center justify-between pb-1">
+                <div className="lg:col-span-7 bg-white rounded-xl p-6 sm:p-8 shadow-xl flex flex-col gap-6" aria-live="polite">
+                  <div className="flex items-center justify-between gap-3 pb-1">
                     <div className="flex flex-col">
                       <span className="text-xs text-[#5f5c72] uppercase tracking-wider font-semibold">Live Transformation</span>
                       <h2 className="text-lg font-bold text-[#161427]">Your Story Details Being Swapped</h2>
+                      {!isDetecting && !detectionError && (
+                        <span className="text-xs font-semibold text-[#5b46e8] mt-1">
+                          {entities.length === 0
+                            ? "No private details found."
+                            : `${entities.length} ${entities.length === 1 ? "private detail" : "private details"} found`}
+                        </span>
+                      )}
                     </div>
-                    <span className="px-3 py-1 rounded-full bg-[#ede8fc] text-[#5b46e8] text-xs font-bold flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#5b46e8] animate-ping" /> Live Shield
-                    </span>
+                    {isDetecting ? (
+                      <span className="px-3 py-1 rounded-full bg-[#ede8fc] text-[#5b46e8] text-xs font-bold flex items-center gap-1.5 shrink-0">
+                        <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+                        Searching...
+                      </span>
+                    ) : detectionError ? (
+                      <span className="px-3 py-1 rounded-full bg-[#fef2f2] text-[#8a3d3d] text-xs font-bold flex items-center gap-1 shrink-0 border border-[#fecaca]">
+                        <span className="material-symbols-outlined text-[14px]">error_outline</span>
+                        Error
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full bg-[#ede8fc] text-[#5b46e8] text-xs font-bold flex items-center gap-1 shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#5b46e8] animate-ping" /> Live Shield
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-col gap-3">
-                    {entities.map((entity) => (
-                      <div key={entity.id} className="flex items-center justify-between p-3.5 rounded-xl bg-[#f4f3f8] hover:bg-[#eeedf2] transition-all">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#e3e2e7] flex items-center justify-center text-[#5f5c72]">
-                            <span className="material-symbols-outlined text-[18px]">{entity.category === 'Person' ? 'person' : entity.category === 'Address' ? 'home' : 'info'}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-sm text-[#161427] font-semibold">{entity.text}</span>
-                            <span className="text-xs text-[#5f5c72]">{entity.category}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="px-3 py-1 rounded-full bg-[#ede8fc] text-[#5b46e8] font-mono font-medium text-xs shadow-xs">{`{${entity.token}}`}</span>
-                          <span className="px-3 py-1 rounded-full bg-[#ede8fc] text-[#5b46e8] font-mono font-medium text-xs shadow-xs">{entity.locked ? 'Locked' : ''}</span>
-                        </div>
+                    {isDetecting ? (
+                      <div className="p-6 rounded-xl bg-[#faf9fe] border border-[#e8e4f3] flex items-center justify-center gap-3 text-sm font-semibold text-[#5b46e8]">
+                        <span className="material-symbols-outlined text-[20px] animate-spin">progress_activity</span>
+                        <span>Searching for private details...</span>
                       </div>
-                    ))}
+                    ) : detectionError ? (
+                      <div
+                        className="p-5 rounded-xl bg-[#fef2f2] border border-[#fecaca] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-[#8a3d3d]"
+                        role="alert"
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <span className="material-symbols-outlined text-[20px] shrink-0 mt-0.5">error_outline</span>
+                          <span>{detectionError}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRetryDetection}
+                          disabled={isDetecting}
+                          className="px-4 py-2 rounded-full bg-white border border-[#fecaca] text-[#8a3d3d] text-xs font-semibold hover:bg-[#fee2e2] transition-colors shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          Try again
+                        </button>
+                      </div>
+                    ) : entities.length === 0 ? (
+                      <div className="p-5 rounded-xl bg-[#faf9fe] border border-[#e8e4f3] flex items-center gap-3 text-sm text-[#5f5c72]">
+                        <span className="material-symbols-outlined text-[20px] text-[#5b46e8]">check_circle</span>
+                        <span>No private details found.</span>
+                      </div>
+                    ) : (
+                      entities.map((entity) => (
+                        <div key={entity.id} className="flex items-center justify-between p-3.5 rounded-xl bg-[#f4f3f8] hover:bg-[#eeedf2] transition-all">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-[#e3e2e7] flex items-center justify-center text-[#5f5c72]">
+                              <span className="material-symbols-outlined text-[18px]">{entity.category === 'Person' ? 'person' : entity.category === 'Address' ? 'home' : 'info'}</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-sm text-[#161427] font-semibold">{entity.text}</span>
+                              <span className="text-xs text-[#5f5c72]">{entity.category}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="px-3 py-1 rounded-full bg-[#ede8fc] text-[#5b46e8] font-mono font-medium text-xs shadow-xs">{`{${entity.token}}`}</span>
+                            <span className="px-3 py-1 rounded-full bg-[#ede8fc] text-[#5b46e8] font-mono font-medium text-xs shadow-xs">{entity.locked ? 'Locked' : ''}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -148,7 +202,11 @@ function ScreenScan() {
                           </div>
                           <div className="flex flex-col pt-0.5 gap-1.5 p-3 rounded-xl bg-[#f4f3f8] border border-[#e8e5f2] w-full shadow-xs">
                             <div className="flex items-center justify-between flex-wrap gap-2">
-                              <span className="text-[15px] font-semibold text-[#161427]">Replacing 5 private details</span>
+                              <span className="text-[15px] font-semibold text-[#161427]">
+                                {isDetecting
+                                  ? "Searching for private details..."
+                                  : `Replacing ${entities.length} ${entities.length === 1 ? "private detail" : "private details"}`}
+                              </span>
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#5b46e8] text-white text-[11px] font-medium shadow-xs">
                                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />In Progress
                               </span>
@@ -206,12 +264,22 @@ function ScreenScan() {
                     Cancel scan
                   </button>
                   <button
-                    className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[#161427] text-white font-semibold text-xs shadow-md transition-all hover:bg-[#25223e] active:scale-95"
+                    className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[#161427] text-white font-semibold text-xs shadow-md transition-all hover:bg-[#25223e] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+                    disabled={isDetecting}
                     onClick={() => navigate("/review")}
                     type="button"
                   >
-                    <span>Proceed to Review</span>
-                    <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                    {isDetecting ? (
+                      <>
+                        <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                        <span>Searching for private details...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Proceed to Review</span>
+                        <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

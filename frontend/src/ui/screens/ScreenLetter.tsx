@@ -1,17 +1,70 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
+import { classifyDisputeType, type DisputeType } from "../../prompts";
 import { useApp } from "../state/AppContext";
 
+const LETTER_HEADINGS: Record<
+  DisputeType,
+  { title: string; category: string }
+> = {
+  salary_payment: {
+    title: "Salary Payment Demand",
+    category: "Employment & Unpaid Salary",
+  },
+  rental_deposit: {
+    title: "Deposit Return Notice",
+    category: "Tenancy & Security Deposit",
+  },
+  refund_dispute: {
+    title: "Refund Demand Notice",
+    category: "Consumer & Merchant Refund",
+  },
+  insurance_claim: {
+    title: "Insurance Claim Appeal",
+    category: "Insurance Coverage Dispute",
+  },
+  medical_bill: {
+    title: "Medical Bill Dispute",
+    category: "Healthcare Billing Dispute",
+  },
+  general_dispute: {
+    title: "Formal Dispute Notice",
+    category: "Formal Correspondence",
+  },
+};
+
 export default function ScreenLetter() {
-  const { triggerToast, setShowWipeModal, finalLetter, draftResult } = useApp();
+  const {
+    triggerToast,
+    setShowWipeModal,
+    resetAll,
+    finalLetter,
+    draftResult,
+    entities,
+    story,
+    approvedStory,
+    disputeType,
+  } = useApp();
   const navigate = useNavigate();
   const [showClearEverythingModal, setShowClearEverythingModal] = useState(false);
+
+  const resolvedDispute = classifyDisputeType(
+    approvedStory ?? story,
+    disputeType,
+  );
+  const { title: disputeTitle, category: disputeCategory } =
+    LETTER_HEADINGS[resolvedDispute];
+  const restoredCountLabel = `${entities.length} ${entities.length === 1 ? "Entity" : "Entities"} Restored on device`;
   const letterPlainContent =
     finalLetter ??
     "No restored letter is available. Return to the review screen.";
 
   const handleCopy = () => {
+    if (!finalLetter) {
+      triggerToast("No letter available to copy.");
+      return;
+    }
     try {
       navigator.clipboard.writeText(letterPlainContent);
     } catch (_e) {
@@ -26,11 +79,15 @@ export default function ScreenLetter() {
   };
 
   const handleDownload = () => {
+    if (!finalLetter) {
+      triggerToast("No letter available to download.");
+      return;
+    }
     const blob = new Blob([letterPlainContent], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "Letterlock_Deposit_Dispute_Priya_Sharma.txt";
+    a.download = `Letterlock_${resolvedDispute}_letter.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -57,26 +114,15 @@ export default function ScreenLetter() {
                 Your formal dispute letter is ready to send.
               </h1>
               <p className="text-base text-[#5f5c72] max-w-2xl leading-relaxed mb-6">
-                Your personal details never left this computer. It turns this stressful dispute into a firm, legally backed notice demanding the return of your{" "}
-                <strong className="text-[#161427] font-semibold">£1,200.00</strong> deposit with an enforceable statutory deadline.
+                Your personal details never left this computer. Your anonymized draft was generated in the cloud and your real details were restored locally on this device.
               </p>
 
               {/* Summary Metric Row */}
-              <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-left mb-4">
+              <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-3 text-left mb-4">
                 <div className="p-4 rounded-xl bg-white border border-[#e2dfec]/60 shadow-sm flex flex-col">
-                  <span className="text-xs uppercase tracking-wider text-[#5f5c72] mb-1 font-semibold">Disputed Amount</span>
-                  <span className="text-2xl text-[#5b46e8] font-bold">£1,200.00</span>
-                  <span className="text-xs text-[#5f5c72] mt-0.5">Full deposit balance</span>
-                </div>
-                <div className="p-4 rounded-xl bg-white border border-[#e2dfec]/60 shadow-sm flex flex-col">
-                  <span className="text-xs uppercase tracking-wider text-[#5f5c72] mb-1 font-semibold">Recipient</span>
-                  <span className="text-base text-[#161427] font-bold">Mr Rao</span>
-                  <span className="text-xs text-[#5f5c72] mt-0.5">Landlord / Representative</span>
-                </div>
-                <div className="p-4 rounded-xl bg-white border border-[#e2dfec]/60 shadow-sm flex flex-col">
-                  <span className="text-xs uppercase tracking-wider text-[#5f5c72] mb-1 font-semibold">Statutory Deadline</span>
-                  <span className="text-base text-[#161427] font-bold">19 October 2026</span>
-                  <span className="text-xs text-[#5b46e8] font-medium mt-0.5">7 Business Days</span>
+                  <span className="text-xs uppercase tracking-wider text-[#5f5c72] mb-1 font-semibold">Letter Type</span>
+                  <span className="text-base text-[#161427] font-bold">{disputeTitle}</span>
+                  <span className="text-xs text-[#5f5c72] mt-0.5">{disputeCategory}</span>
                 </div>
                 <div className="p-4 rounded-xl bg-white border border-[#e2dfec]/60 shadow-sm flex flex-col">
                   <span className="text-xs uppercase tracking-wider text-[#5f5c72] mb-1 font-semibold">Privacy Status</span>
@@ -84,7 +130,12 @@ export default function ScreenLetter() {
                     <span className="material-symbols-outlined text-[18px]">verified</span>
                     <span className="text-base">100% Private</span>
                   </div>
-                  <span className="text-xs text-[#5f5c72] mt-0.5">7 Entities Restored on device</span>
+                  <span className="text-xs text-[#5f5c72] mt-0.5">{restoredCountLabel}</span>
+                </div>
+                <div className="p-4 rounded-xl bg-white border border-[#e2dfec]/60 shadow-sm flex flex-col">
+                  <span className="text-xs uppercase tracking-wider text-[#5f5c72] mb-1 font-semibold">Drafting Model</span>
+                  <span className="text-base text-[#161427] font-bold">{draftResult?.modelUsed ?? "Cloud AI"}</span>
+                  <span className="text-xs text-[#5b46e8] font-medium mt-0.5">Placeholders verified &amp; restored</span>
                 </div>
               </div>
             </section>
@@ -111,15 +162,15 @@ export default function ScreenLetter() {
                     <li className="flex items-start gap-3.5">
                       <span className="w-6 h-6 rounded-full bg-[#5b46e8] text-white text-[12px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
                       <div className="flex flex-col">
-                        <span className="text-sm font-bold text-[#161427]">Send to your landlord</span>
-                        <p className="text-xs text-[#5f5c72] mt-0.5">Send via email or certified post to Mr Rao so you have an undeniable receipt timestamp.</p>
+                        <span className="text-sm font-bold text-[#161427]">Send to the recipient</span>
+                        <p className="text-xs text-[#5f5c72] mt-0.5">Send via email or certified post so you have a clear delivery record.</p>
                       </div>
                     </li>
                     <li className="flex items-start gap-3.5">
                       <span className="w-6 h-6 rounded-full bg-[#e8e7ec] text-[#161427] text-[12px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
                       <div className="flex flex-col">
                         <span className="text-sm font-bold text-[#161427]">Escalate if necessary</span>
-                        <p className="text-xs text-[#5f5c72] mt-0.5">If no response by 19 October 2026, file directly with small claims court using this formal document as evidence.</p>
+                        <p className="text-xs text-[#5f5c72] mt-0.5">If you receive no response by the deadline in your letter, keep this document as part of your formal record.</p>
                       </div>
                     </li>
                   </ol>
@@ -158,39 +209,20 @@ export default function ScreenLetter() {
                     <span className="material-symbols-outlined text-[90px] text-[#e3e2e7]/60">shield</span>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-8 border-b border-[#eeedf2] mb-8">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-[#eeedf2] mb-6">
                     <div className="flex flex-col">
-                      <span className="text-xs uppercase tracking-widest text-[#5b46e8] font-bold mb-1">Formal Legal Notice</span>
-                      <h2 className="text-2xl text-[#161427] font-bold tracking-tight">Deposit Return Notice</h2>
-                      <span className="text-xs text-[#5f5c72] mt-1">Pursuant to Statutory Residential Landlord-Tenant Provisions</span>
+                      <span className="text-xs uppercase tracking-widest text-[#5b46e8] font-bold mb-1">Formal Letter</span>
+                      <h2 className="text-2xl text-[#161427] font-bold tracking-tight">{disputeTitle}</h2>
+                      <span className="text-xs text-[#5f5c72] mt-1">{disputeCategory}</span>
                     </div>
                     <div className="flex flex-col sm:text-right">
-                      <span className="text-xs uppercase tracking-wider text-[#5f5c72]">Date Issued</span>
-                      <span className="text-base text-[#161427] font-bold">12 October 2026</span>
-                      <span className="text-xs text-[#5f5c72] mt-0.5">
-                        Ref: <span className="font-bold text-[#161427]">LS-20418</span>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-5 rounded-lg bg-[#f4f3f8] mb-8">
-                    <div className="flex flex-col">
-                      <span className="text-xs uppercase tracking-wider text-[#5f5c72] mb-1 font-semibold">To Landlord / Agent:</span>
-                      <span className="text-base text-[#161427] font-bold">Mr Rao</span>
-                      <span className="text-xs text-[#5f5c72] mt-0.5">Phone: 98765 43210</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-xs uppercase tracking-wider text-[#5f5c72] mb-1 font-semibold">Rental Property:</span>
-                      <span className="text-base text-[#161427] font-bold">14 Oak Street</span>
-                      <span className="text-xs text-[#5f5c72] mt-0.5">
-                        Disputed Sum: <strong className="text-[#5b46e8] font-bold">£1,200.00</strong>
-                      </span>
-                      <span className="text-xs text-[#5f5c72]">Vacated: 3 June</span>
+                      <span className="text-xs uppercase tracking-wider text-[#5f5c72]">Privacy Check</span>
+                      <span className="text-sm text-[#5b46e8] font-bold">{restoredCountLabel}</span>
                     </div>
                   </div>
 
                   {finalLetter ? (
-                    <div className="text-base text-[#161427] leading-relaxed whitespace-pre-wrap">
+                    <div className="text-[15px] sm:text-base text-[#161427] leading-[1.8] whitespace-pre-wrap">
                       {finalLetter}
                     </div>
                   ) : (
@@ -220,7 +252,8 @@ export default function ScreenLetter() {
                       <span>Start Over</span>
                     </button>
                     <button
-                      className="px-4 py-2.5 rounded-full bg-[#f4f3f8] hover:bg-[#eeedf2] text-[#161427] text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer"
+                      className="px-4 py-2.5 rounded-full bg-[#f4f3f8] hover:bg-[#eeedf2] text-[#161427] text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!finalLetter}
                       onClick={handleDownload}
                       type="button"
                     >
@@ -228,7 +261,8 @@ export default function ScreenLetter() {
                       <span>Download .txt</span>
                     </button>
                     <button
-                      className="px-4 py-2.5 rounded-full bg-[#f4f3f8] hover:bg-[#eeedf2] text-[#161427] text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer"
+                      className="px-4 py-2.5 rounded-full bg-[#f4f3f8] hover:bg-[#eeedf2] text-[#161427] text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!finalLetter}
                       onClick={() => window.print()}
                       type="button"
                     >
@@ -239,7 +273,8 @@ export default function ScreenLetter() {
 
                   <div className="flex flex-col sm:items-end w-full sm:w-auto">
                     <button
-                      className="w-full sm:w-auto px-7 py-3 rounded-full bg-[#161427] hover:bg-[#5b46e8] text-white font-bold transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2.5 group cursor-pointer text-sm"
+                      className="w-full sm:w-auto px-7 py-3 rounded-full bg-[#161427] hover:bg-[#5b46e8] text-white font-bold transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2.5 group cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#161427]"
+                      disabled={!finalLetter}
                       onClick={handleCopy}
                       type="button"
                     >
@@ -325,6 +360,7 @@ export default function ScreenLetter() {
               <button
                 className="w-full sm:w-auto px-6 py-3 rounded-full bg-[#dc2626] hover:bg-[#b91c1c] text-white text-xs font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                 onClick={() => {
+                  resetAll();
                   setShowClearEverythingModal(false);
                   navigate("/");
                 }}

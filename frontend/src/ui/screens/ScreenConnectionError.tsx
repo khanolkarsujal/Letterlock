@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
+import { CLOUD_TIMEOUT_SECONDS } from "../../inference/cloudDrafting";
 import { useApp } from "../state/AppContext";
 
 export default function ScreenConnectionError() {
   const navigate = useNavigate();
-  const { startCloudDraft, draftError } = useApp();
+  const { startCloudDraft, draftError, entities } = useApp();
   const [isRetrying, setIsRetrying] = useState(false);
 
   const handleRetry = async () => {
@@ -72,7 +73,7 @@ export default function ScreenConnectionError() {
                   <span>Attempt status</span>
                   <span className="material-symbols-outlined text-[16px] text-[#ef4444]">schedule</span>
                 </div>
-                <div className="text-[14px] font-bold text-[#161427]">Timed out after 120s</div>
+                <div className="text-[14px] font-bold text-[#161427]">Timed out after {CLOUD_TIMEOUT_SECONDS}s</div>
                 <div className="text-[12px] text-[#78767d]">Cloud server took too long</div>
               </div>
             </div>
@@ -111,38 +112,25 @@ export default function ScreenConnectionError() {
                 <h2 className="text-[17px] font-bold text-[#161427]">Your story and details are preserved in memory</h2>
               </div>
               <span className="self-start md:self-auto px-3 py-1 rounded-full bg-[#f5f3ff] border border-[#ddd6fe] text-[#5b46e8] text-[12px] font-semibold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#5b46e8]" />7 Redactions Ready
+                <span className="w-2 h-2 rounded-full bg-[#5b46e8]" />
+                {entities.length} {entities.length === 1 ? "Redaction" : "Redactions"} Ready
               </span>
             </div>
             <p className="text-[13px] text-[#5f5c72] leading-relaxed">
-              When the service responds or you choose to export, your private details will seamlessly merge back into the letter on your computer.
+              {entities.length > 0
+                ? "When the service responds or you choose to export, your private details will seamlessly merge back into the letter on your computer."
+                : "No private redactions are currently in memory. If you refreshed the tab, start from Step 1 to re-enter your story."}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-              <div className="p-3 rounded-xl bg-[#faf9fe] border border-[#eae6f4] flex items-center justify-between">
-                <span className="px-2 py-0.5 rounded bg-[#f5f3ff] text-[#5b46e8] font-mono text-[11px] font-semibold">{`{Person A}`}</span>
-                <span className="text-[12px] font-medium text-[#161427] truncate max-w-[120px]">Elena Vance</span>
+            {entities.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                {entities.map((entity) => (
+                  <div key={entity.id} className="p-3 rounded-xl bg-[#faf9fe] border border-[#eae6f4] flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded bg-[#f5f3ff] text-[#5b46e8] font-mono text-[11px] font-semibold">{`{${entity.token}}`}</span>
+                    <span className="text-[12px] font-medium text-[#161427] truncate max-w-[120px]">{entity.text}</span>
+                  </div>
+                ))}
               </div>
-              <div className="p-3 rounded-xl bg-[#faf9fe] border border-[#eae6f4] flex items-center justify-between">
-                <span className="px-2 py-0.5 rounded bg-[#f5f3ff] text-[#5b46e8] font-mono text-[11px] font-semibold">{`{Address 1}`}</span>
-                <span className="text-[12px] font-medium text-[#161427] truncate max-w-[120px]">742 Evergreen Terr</span>
-              </div>
-              <div className="p-3 rounded-xl bg-[#faf9fe] border border-[#eae6f4] flex items-center justify-between">
-                <span className="px-2 py-0.5 rounded bg-[#f5f3ff] text-[#5b46e8] font-mono text-[11px] font-semibold">{`{Person B}`}</span>
-                <span className="text-[12px] font-medium text-[#161427] truncate max-w-[120px]">Apex Mgmt LLC</span>
-              </div>
-              <div className="p-3 rounded-xl bg-[#faf9fe] border border-[#eae6f4] flex items-center justify-between">
-                <span className="px-2 py-0.5 rounded bg-[#f5f3ff] text-[#5b46e8] font-mono text-[11px] font-semibold">{`{Amount 1}`}</span>
-                <span className="text-[12px] font-medium text-[#161427] truncate max-w-[120px]">$2,450.00</span>
-              </div>
-              <div className="p-3 rounded-xl bg-[#faf9fe] border border-[#eae6f4] flex items-center justify-between">
-                <span className="px-2 py-0.5 rounded bg-[#f5f3ff] text-[#5b46e8] font-mono text-[11px] font-semibold">{`{Date 1}`}</span>
-                <span className="text-[12px] font-medium text-[#161427] truncate max-w-[120px]">Oct 31, 2024</span>
-              </div>
-              <div className="p-3 rounded-xl bg-[#faf9fe] border border-[#eae6f4] flex items-center justify-between">
-                <span className="px-2 py-0.5 rounded bg-[#f5f3ff] text-[#5b46e8] font-mono text-[11px] font-semibold">{`{Lease 1}`}</span>
-                <span className="text-[12px] font-medium text-[#161427] truncate max-w-[120px]">Apt #4B</span>
-              </div>
-            </div>
+            )}
             <div className="p-3.5 rounded-2xl bg-[#f5f3ff] border border-[#ddd6fe] flex items-center gap-3 text-[12px] text-[#5b46e8]">
               <span className="material-symbols-outlined text-[18px] shrink-0">info</span>
               <span>Leaving or refreshing this tab will permanently clear everything from your computer.</span>

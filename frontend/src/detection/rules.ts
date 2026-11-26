@@ -53,6 +53,14 @@ function isAccount(value: string): boolean {
     return true;
   }
 
+  if (/^[A-Z]{4}0[A-Z0-9]{6}$/.test(compact)) {
+    return true;
+  }
+
+  if (/^[A-Z]{2,5}-\d{4,10}$/i.test(value.trim())) {
+    return true;
+  }
+
   const digits = countDigits(value);
   return digits >= 8 && digits <= 17;
 }
@@ -88,8 +96,18 @@ function createRules(): Rule[] {
     },
     {
       kind: "phone",
-      pattern: /\b\d{10,15}\b/g,
+      pattern: /\b\d{10}\b/g,
       accept: isPhone,
+    },
+    {
+      kind: "account",
+      pattern: /\b[A-Z]{4}0[A-Z0-9]{6}\b/g,
+      accept: isAccount,
+    },
+    {
+      kind: "account",
+      pattern: /\b[A-Z]{2,5}-\d{4,10}\b/g,
+      accept: isAccount,
     },
     {
       kind: "account",
