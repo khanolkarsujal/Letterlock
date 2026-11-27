@@ -3,6 +3,7 @@ import {
   checkReturnedPlaceholders,
   extractPlaceholders,
   findLeaks,
+  normalizeReturnedPlaceholders,
   redactStory,
   RedactionError,
   RedactionMap,
@@ -212,6 +213,14 @@ describe("restoreText", () => {
       "Dear Alex Example and {Person Z}.",
     );
   });
+
+  it("restores doubled braces to the same value", () => {
+    const list = buildEntries([["Alex Example", "person"]]);
+
+    expect(restoreText("Dear {{Person A}}.", list)).toBe(
+      "Dear Alex Example.",
+    );
+  });
 });
 
 describe("checkReturnedPlaceholders", () => {
@@ -255,6 +264,20 @@ describe("checkReturnedPlaceholders", () => {
     expect(result.ok).toBe(false);
     expect(result.unexpected).toEqual(["{Person Z}"]);
   });
+
+  it("accepts doubled braces when every placeholder is present", () => {
+    const map = new RedactionMap();
+    map.add("Alex Example", "person");
+    map.add("12 Test Lane", "address");
+    const approved = map.redact("Alex Example at 12 Test Lane");
+
+    const result = map.checkReturned(
+      approved,
+      "Dear {{Person A}}, about {{Address 1}}.",
+    );
+
+    expect(result.ok).toBe(true);
+  });
 });
 
 describe("extractPlaceholders", () => {
@@ -264,6 +287,13 @@ describe("extractPlaceholders", () => {
         "A {Person A}, {Address 2}, {not a token} and {Person a}.",
       ),
     ).toEqual(["{Person A}", "{Address 2}"]);
+  });
+
+  it("accepts doubled braces as the same placeholder", () => {
+    expect(extractPlaceholders("A {{Person A}} and {{Address 2}}.")).toEqual([
+      "{Person A}",
+      "{Address 2}",
+    ]);
   });
 });
 
@@ -284,5 +314,41 @@ describe("RedactionMap lifecycle", () => {
 
     expect(map.size).toBe(0);
     expect(map.add("Sam Sample", "person").token).toBe("{Person A}");
+  });
+});
+
+describe("normalizeReturnedPlaceholders", () => {
+  it("normalizes {person a}, {Person_A}, and unbraced Person A to {Person A}", () => {
+    const map = new RedactionMap();
+    map.add("Arjun Mehta", "person");
+    map.add("BrightTech Solutions", "organization");
+    const approved = map.redact("My name is Arjun Mehta at BrightTech Solutions.");
+
+    const rawResponse =
+      "Dear Sir, {person a} worked at {Organization_1}. Regards, Person A.";
+    const normalized = normalizeReturnedPlaceholders(rawResponse, approved);
+
+    expect(normalized).toBe(
+      "Dear Sir, {Person A} worked at {Organization 1}. Regards, {Person A}.",
+    );
+    expect(checkReturnedPlaceholders(approved, normalized).ok).toBe(true);
+    expect(map.restore(normalized)).toBe(
+      "Dear Sir, Arjun Mehta worked at BrightTech Solutions. Regards, Arjun Mehta.",
+    );
+  });
+
+  it("still rejects unknown placeholders like {Person C}", () => {
+    const map = new RedactionMap();
+    map.add("Arjun Mehta", "person");
+    const approved = map.redact("My name is Arjun Mehta.");
+
+    const normalized = normalizeReturnedPlaceholders(
+      "Dear Person A, please copy {Person C}.",
+      approved,
+    );
+    const check = checkReturnedPlaceholders(approved, normalized);
+
+    expect(check.ok).toBe(false);
+    expect(check.unexpected).toEqual(["{Person C}"]);
   });
 });

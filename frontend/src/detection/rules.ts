@@ -5,8 +5,8 @@ import type { RuleMatch, TextRange } from "./types";
  * Rules-based detection. It never talks to the cloud and works when no local
  * model is available.
  *
- * Scope follows F6: email addresses, phone numbers and account numbers. Names,
- * addresses, dates and amounts are the on-device model's job.
+ * Scope: emails, phones, accounts/IFSC, reference IDs, organizations, and
+ * person names via trigger words and capitalized name pairs.
  */
 
 interface Rule {
@@ -14,6 +14,81 @@ interface Rule {
   readonly pattern: RegExp;
   readonly accept?: (value: string) => boolean;
 }
+
+const ORG_SUFFIXES = new Set([
+  "solutions",
+  "pvt",
+  "ltd",
+  "limited",
+  "inc",
+  "llc",
+  "corp",
+  "technologies",
+  "bank",
+  "insurance",
+  "hospital",
+  "clinic",
+  "properties",
+  "realty",
+]);
+
+const NON_PERSON_WORDS = new Set([
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+  "street",
+  "road",
+  "lane",
+  "avenue",
+  "boulevard",
+  "drive",
+  "nagar",
+  "colony",
+  "sector",
+  "apartment",
+  "flat",
+  "floor",
+  "subject",
+  "request",
+  "salary",
+  "payment",
+  "correction",
+  "deposit",
+  "return",
+  "notice",
+  "medical",
+  "bill",
+  "insurance",
+  "claim",
+  "employee",
+  "bank",
+  "account",
+  "ifsc",
+  "code",
+  "dear",
+  "sir",
+  "madam",
+  "hello",
+  "regards",
+  "sincerely",
+  "thanks",
+]);
 
 function countDigits(value: string): number {
   const matches = value.match(/\d/g);
@@ -57,24 +132,84 @@ function isAccount(value: string): boolean {
     return true;
   }
 
-  if (/^[A-Z]{2,5}-\d{4,10}$/i.test(value.trim())) {
-    return true;
-  }
-
   const digits = countDigits(value);
   return digits >= 8 && digits <= 17;
 }
 
+function isReferenceId(value: string): boolean {
+  const trimmed = value.trim();
+  if (/^(?:FY|Q[1-4])-\d{4}$/i.test(trimmed)) {
+    return false;
+  }
+  return /^[A-Z]{2,5}-\d{4,10}$/.test(trimmed);
+}
+
+function isPersonCandidate(value: string): boolean {
+  const words = value.trim().split(/\s+/);
+  if (words.length === 0) return false;
+  return words.every((word) => {
+    const clean = word.replace(/[.,'’\-]/g, "").toLocaleLowerCase();
+    return (
+      clean.length >= 2 &&
+      !NON_PERSON_WORDS.has(clean) &&
+      !ORG_SUFFIXES.has(clean)
+    );
+  });
+}
+
+function isOrganizationCandidate(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length < 3) return false;
+  const words = trimmed.split(/\s+/);
+  const firstClean = words[0]?.replace(/[.,'’]/g, "").toLocaleLowerCase() ?? "";
+  return !NON_PERSON_WORDS.has(firstClean);
+}
+
 function createRules(): Rule[] {
   return [
+    // 1. Organizations (run before person name-pair rules so company names stay organizations)
+    {
+      kind: "organization",
+      pattern:
+        /\b([A-Z][A-Za-z0-9&'.-]+(?:\s+(?:of|and|&|[A-Z][A-Za-z0-9&'.-]+)){0,4}\s+(?:Solutions|Pvt\.?\s+Ltd\.?|Pvt\.?|Ltd\.?|Limited|Inc\.?|LLC|Corp\.?|Technologies|Bank|Insurance|Hospital|Clinic|Properties|Realty))\b/g,
+      accept: isOrganizationCandidate,
+    },
+    {
+      kind: "organization",
+      pattern:
+        /\b(?:[Ww]orked\s+at|[Ee]mployed\s+by|[Ee]mployed\s+at|[Ii]nsured\s+with)\s+([A-Z][A-Za-z0-9&'.-]+(?:\s+[A-Z][A-Za-z0-9&'.-]+){0,3})/g,
+      accept: isOrganizationCandidate,
+    },
+    // 2. Person names after explicit triggers, titles, or closings (no /i flag so [A-Z] only matches capitalized words)
     {
       kind: "person",
-      pattern: /\b(?:my name is|name is|i am|i['’]m)\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){0,3})/gi,
+      pattern:
+        /\b(?:[Mm]y\s+name\s+is|[Nn]ame\s+is|I\s+am|I['’]m)\s+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){0,3})/g,
     },
     {
       kind: "person",
-      pattern: /\b(?:Mr|Mrs|Ms|Miss|Mx|Dr)\.?\s+[A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?/g,
+      pattern:
+        /\b(?:Mr|Mrs|Ms|Miss|Mx|Dr)\.?\s+[A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+)?/g,
     },
+    {
+      kind: "person",
+      pattern:
+        /\b(?:[Mm]anager|[Ll]andlord|[Ee]mployer|[Ss]upervisor|[Dd]octor|[Cc]ontact|[Aa]sk\s+for|[Ss]igned\s+by)[,:\s]+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){0,2})/g,
+      accept: isPersonCandidate,
+    },
+    {
+      kind: "person",
+      pattern:
+        /\b(?:[Rr]egards|[Ss]incerely|[Tt]hanks|[Tt]hank\s+you|[Ww]arm\s+regards|[Bb]est\s+regards)[,\s]+([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,2})/g,
+      accept: isPersonCandidate,
+    },
+    // 3. Capitalized two-word person name pairs (after orgs & triggers, filtered by stoplist)
+    {
+      kind: "person",
+      pattern: /\b([A-Z][a-z]{1,20}\s+[A-Z][a-z]{1,20})\b/g,
+      accept: isPersonCandidate,
+    },
+    // 4. Emails, phones, reference IDs, and accounts
     {
       kind: "email",
       pattern: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
@@ -100,13 +235,13 @@ function createRules(): Rule[] {
       accept: isPhone,
     },
     {
-      kind: "account",
-      pattern: /\b[A-Z]{4}0[A-Z0-9]{6}\b/g,
-      accept: isAccount,
+      kind: "reference",
+      pattern: /\b[A-Z]{2,5}-\d{4,10}\b/g,
+      accept: isReferenceId,
     },
     {
       kind: "account",
-      pattern: /\b[A-Z]{2,5}-\d{4,10}\b/g,
+      pattern: /\b[A-Z]{4}0[A-Z0-9]{6}\b/g,
       accept: isAccount,
     },
     {
@@ -133,8 +268,7 @@ function overlaps(start: number, end: number, ranges: readonly TextRange[]): boo
 
 /**
  * Runs every rule in priority order and drops matches that overlap a higher
- * priority match. This keeps, for example, a 10-digit phone number from being
- * reported as both a phone and an account number.
+ * priority match.
  */
 export function detectWithRules(story: string): RuleMatch[] {
   const accepted: RuleMatch[] = [];
@@ -145,9 +279,11 @@ export function detectWithRules(story: string): RuleMatch[] {
       if (match.index === undefined) continue;
 
       const value =
-        rule.kind === "person" && match[1] ? match[1] : match[0];
+        (rule.kind === "person" || rule.kind === "organization") && match[1]
+          ? match[1]
+          : match[0];
       const valueOffset =
-        rule.kind === "person" && match[1]
+        (rule.kind === "person" || rule.kind === "organization") && match[1]
           ? match[0].indexOf(match[1], 0)
           : 0;
       if (rule.accept && !rule.accept(value)) continue;

@@ -1,12 +1,105 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import { useApp } from '../state/AppContext';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Header from "../components/Header";
 import {
   highlightOriginalStory,
   highlightRedactedStory,
-} from '../lib/storySegments';
+  verifyRenderedStoryOrder,
+} from "../lib/storySegments";
+import { useApp } from "../state/AppContext";
+
+const COMMON_CAPITALIZED_SKIP = new Set([
+  // Greetings, sign-offs, subject/letter words, pronouns, starters
+  "Subject",
+  "Request",
+  "Hello",
+  "Hi",
+  "Dear",
+  "Regards",
+  "Sincerely",
+  "Thanks",
+  "Thank",
+  "Please",
+  "My",
+  "Your",
+  "The",
+  "This",
+  "That",
+  "These",
+  "Those",
+  "If",
+  "In",
+  "On",
+  "At",
+  "For",
+  "From",
+  "To",
+  "I",
+  "We",
+  "You",
+  "He",
+  "She",
+  "They",
+  "It",
+  // Common acronyms & document terms
+  "IFSC",
+  "UPI",
+  "ID",
+  "PAN",
+  "OTP",
+  "GST",
+  "EMI",
+  "HR",
+  "CEO",
+  "USA",
+  "UK",
+  "AI",
+  "ATM",
+  "PIN",
+  "PDF",
+  // Months & days
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+]);
+
+interface SelectionPopup {
+  text: string;
+  x: number;
+  y: number;
+}
+
+function isSentenceStart(lineText: string, index: number): boolean {
+  if (index === 0) return true;
+  const before = lineText.slice(0, index);
+  if (before.trim().length === 0) return true;
+  return /[.!?]\s*$/.test(before);
+}
+
+function isTitleOrSubjectLine(lineText: string): boolean {
+  const trimmed = lineText.trim();
+  if (!trimmed) return false;
+  if (/^(?:Subject|Re|Title|To|From|Date|Ref)\s*:/i.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
 
 function ScreenReview() {
   const {
@@ -19,404 +112,658 @@ function ScreenReview() {
     addEntity,
   } = useApp();
   const navigate = useNavigate();
-  const originalSegments = highlightOriginalStory(story, redactionMap.entries);
-  const redactedSegments = highlightRedactedStory(
-    redactedStory ?? story,
-    redactionMap.entries,
+
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const rowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const flashTimerRef = useRef<number | null>(null);
+
+  const [hoveredToken, setHoveredToken] = useState<string | null>(null);
+  const [flashingToken, setFlashingToken] = useState<string | null>(null);
+  const [activeDetailIndex, setActiveDetailIndex] = useState<number>(0);
+  const [unhiddenValues, setUnhiddenValues] = useState<string[]>([]);
+  const [selectionPopup, setSelectionPopup] = useState<SelectionPopup | null>(
+    null,
+  );
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+
+  const activeToken = hoveredToken ?? flashingToken;
+
+  const entityByLowerText = useMemo(() => {
+    const map = new Map<string, (typeof entities)[number]>();
+    for (const entity of entities) {
+      map.set(entity.text.toLocaleLowerCase(), entity);
+    }
+    return map;
+  }, [entities]);
+
+  const unhiddenSet = useMemo(
+    () => new Set(unhiddenValues.map((v) => v.toLocaleLowerCase())),
+    [unhiddenValues],
   );
 
-  // Quick inline add state
-  const [inlineVal, setInlineVal] = useState('');
-  const [inlineType, setInlineType] = useState('Person');
+  // Split story and redactedStory into aligned paragraph/line rows
+  const rows = useMemo(() => {
+    const origLines = story.split("\n");
+    const redLines = (redactedStory ?? story).split("\n");
+    const count = Math.max(origLines.length, redLines.length);
 
-  // Modal state (Screen 6)
-  const [showModal, setShowModal] = useState(false);
-  const [modalInput, setModalInput] = useState('the shop on Oak Lane');
-  const [modalType, setModalType] = useState('Address');
-  const [approvalError, setApprovalError] = useState<string | null>(null);
+    return Array.from({ length: count }, (_, idx) => {
+      const origLine = origLines[idx] ?? "";
+      const redLine = redLines[idx] ?? "";
+      return {
+        index: idx,
+        origLine,
+        redLine,
+        isEmpty: origLine.trim() === "" && redLine.trim() === "",
+        origSegments: highlightOriginalStory(origLine, redactionMap.entries),
+        redSegments: highlightRedactedStory(redLine, redactionMap.entries),
+      };
+    });
+  }, [story, redactedStory, redactionMap]);
 
-  const handleAddInline = () => {
-    if (!inlineVal.trim()) return;
-    if (addEntity(inlineVal.trim(), 'Custom / User Specified', inlineType)) {
-      setInlineVal('');
+  // Verify left panel rendered segments exactly equal the original story
+  useEffect(() => {
+    if (!story) return;
+    const reconstructedLines = rows.map((row) =>
+      row.origSegments.map((s) => s.text).join(""),
+    );
+    verifyRenderedStoryOrder(story, [reconstructedLines.join("\n")]);
+  }, [story, rows]);
+
+  // Ordered list of hidden details by row appearance for step-through controls
+  const stepItems = useMemo(() => {
+    const items: Array<{ token: string; value: string; rowIndex: number }> = [];
+    const seen = new Set<string>();
+    for (const row of rows) {
+      for (const seg of row.origSegments) {
+        if (!seg.highlighted) continue;
+        const entity = entityByLowerText.get(seg.text.toLocaleLowerCase());
+        if (entity && !seen.has(entity.token)) {
+          seen.add(entity.token);
+          items.push({
+            token: entity.token,
+            value: entity.text,
+            rowIndex: row.index,
+          });
+        }
+      }
+    }
+    return items;
+  }, [rows, entityByLowerText]);
+
+  useEffect(() => {
+    if (stepItems.length === 0) {
+      setActiveDetailIndex(0);
+    } else if (activeDetailIndex >= stepItems.length) {
+      setActiveDetailIndex(stepItems.length - 1);
+    }
+  }, [stepItems.length, activeDetailIndex]);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current !== null) {
+        window.clearTimeout(flashTimerRef.current);
+      }
+    };
+  }, []);
+
+  const updateScrollFades = useCallback(() => {
+    const el = scrollAreaRef.current;
+    if (!el) return;
+    setCanScrollUp(el.scrollTop > 6);
+    setCanScrollDown(el.scrollTop + el.clientHeight < el.scrollHeight - 6);
+  }, []);
+
+  useEffect(() => {
+    updateScrollFades();
+    window.addEventListener("resize", updateScrollFades);
+    return () => window.removeEventListener("resize", updateScrollFades);
+  }, [story, entities.length, updateScrollFades]);
+
+  const stepToDetail = useCallback(
+    (delta: number) => {
+      if (stepItems.length === 0) return;
+      const nextIdx =
+        (activeDetailIndex + delta + stepItems.length) % stepItems.length;
+      setActiveDetailIndex(nextIdx);
+      const target = stepItems[nextIdx];
+      if (!target) return;
+
+      const rowEl = rowRefs.current.get(target.rowIndex);
+      if (rowEl) {
+        const reduceMotion = window.matchMedia(
+          "(prefers-reduced-motion: reduce)",
+        ).matches;
+        rowEl.scrollIntoView({
+          behavior: reduceMotion ? "auto" : "smooth",
+          block: "center",
+        });
+      }
+
+      if (flashTimerRef.current !== null) {
+        window.clearTimeout(flashTimerRef.current);
+      }
+      setFlashingToken(target.token);
+      flashTimerRef.current = window.setTimeout(() => {
+        setFlashingToken(null);
+        flashTimerRef.current = null;
+      }, 800);
+    },
+    [stepItems, activeDetailIndex],
+  );
+
+  const handleHideValue = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    if (addEntity(trimmed, "Custom", "Other")) {
+      setUnhiddenValues((prev) =>
+        prev.filter((v) => v.toLocaleLowerCase() !== trimmed.toLocaleLowerCase()),
+      );
+      setApprovalError(null);
     }
   };
 
-  const handleAddModal = () => {
-    if (!modalInput.trim()) return;
-    if (addEntity(modalInput.trim(), 'Manual Redaction', modalType)) {
-      setModalInput('');
-      setShowModal(false);
+  const handleUnhideValue = (value: string) => {
+    const entity = entityByLowerText.get(value.toLocaleLowerCase());
+    if (!entity) return;
+    removeEntity(entity.id);
+    setUnhiddenValues((prev) =>
+      prev.some((v) => v.toLocaleLowerCase() === value.toLocaleLowerCase())
+        ? prev
+        : [...prev, value],
+    );
+    setHoveredToken(null);
+    setFlashingToken(null);
+    setApprovalError(null);
+  };
+
+  const handleTextSelection = () => {
+    const container = scrollAreaRef.current;
+    const selection = window.getSelection();
+    if (!container || !selection || selection.isCollapsed) {
+      setSelectionPopup(null);
+      return;
     }
+
+    const selectedText = selection.toString().trim();
+    if (!selectedText || selectedText.length < 2) {
+      setSelectionPopup(null);
+      return;
+    }
+
+    if (
+      !container.contains(selection.anchorNode) ||
+      !container.contains(selection.focusNode)
+    ) {
+      setSelectionPopup(null);
+      return;
+    }
+
+    if (entityByLowerText.has(selectedText.toLocaleLowerCase())) {
+      setSelectionPopup(null);
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    setSelectionPopup({
+      text: selectedText,
+      x: Math.max(
+        56,
+        Math.min(
+          containerRect.width - 56,
+          rect.left - containerRect.left + rect.width / 2,
+        ),
+      ),
+      y: Math.max(56, rect.top - containerRect.top + container.scrollTop - 40),
+    });
+  };
+
+  const handleHideSelected = () => {
+    if (!selectionPopup) return;
+    handleHideValue(selectionPopup.text);
+    setSelectionPopup(null);
+    window.getSelection()?.removeAllRanges();
   };
 
   const handleApprove = () => {
     const result = approveStory();
     setApprovalError(result.error);
-
     if (result.ok) {
-      navigate('/generating');
+      navigate("/generating");
     }
   };
 
+  // Render plain text with dashed outlines for un-hidden items and dotted
+  // underlines only on mid-sentence capitalized phrases not in the skip list.
+  // Never spans newlines ([ \t]+ only) and uses inline spans so text order is never broken.
+  const renderPlainWithHints = (
+    text: string,
+    fullLine: string,
+    segmentOffsetInLine: number,
+    keyPrefix: string,
+  ) => {
+    const skipLineHints = isTitleOrSubjectLine(fullLine);
+    const hintPattern =
+      /\b([A-Z][a-zA-Z'-]{1,24}(?:[ \t]+[A-Z][a-zA-Z'-]{1,24})*)\b/g;
+    const nodes: React.ReactNode[] = [];
+    let cursor = 0;
+
+    for (const match of text.matchAll(hintPattern)) {
+      const idx = match.index;
+      if (idx === undefined) continue;
+      const phrase = match[0];
+
+      if (idx > cursor) {
+        nodes.push(
+          <React.Fragment key={`${keyPrefix}-t-${cursor}`}>
+            {text.slice(cursor, idx)}
+          </React.Fragment>,
+        );
+      }
+
+      const isUnhidden = unhiddenSet.has(phrase.toLocaleLowerCase());
+      const words = phrase.split(/[ \t]+/);
+      const allAcronymsOrSkip = words.every(
+        (w) => /^[A-Z]{2,}$/.test(w) || COMMON_CAPITALIZED_SKIP.has(w),
+      );
+      const atSentenceStart = isSentenceStart(
+        fullLine,
+        segmentOffsetInLine + idx,
+      );
+
+      if (isUnhidden) {
+        nodes.push(
+          <span
+            key={`${keyPrefix}-u-${idx}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => handleHideValue(phrase)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleHideValue(phrase);
+              }
+            }}
+            title="Click to hide again"
+            className="inline border border-dashed border-[#b6b0c7] px-1.5 py-0.5 rounded-lg text-[16px] text-[#161427] hover:border-[#5b46e8] hover:bg-[#ede8fc]/40 transition-colors cursor-pointer"
+          >
+            {phrase}
+          </span>,
+        );
+      } else if (!skipLineHints && !allAcronymsOrSkip && !atSentenceStart) {
+        nodes.push(
+          <span
+            key={`${keyPrefix}-h-${idx}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => handleHideValue(phrase)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleHideValue(phrase);
+              }
+            }}
+            title="Possible miss — click to hide"
+            className="inline underline decoration-dotted decoration-[#9b96b0] underline-offset-4 hover:bg-[#ede8fc]/50 hover:decoration-[#5b46e8] rounded px-0.5 transition-colors cursor-pointer"
+          >
+            {phrase}
+          </span>,
+        );
+      } else {
+        nodes.push(
+          <React.Fragment key={`${keyPrefix}-s-${idx}`}>
+            {phrase}
+          </React.Fragment>,
+        );
+      }
+
+      cursor = idx + phrase.length;
+    }
+
+    if (cursor < text.length) {
+      nodes.push(
+        <React.Fragment key={`${keyPrefix}-end`}>
+          {text.slice(cursor)}
+        </React.Fragment>,
+      );
+    }
+
+    return nodes;
+  };
+
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header activeStep={2} />
-      <main className="w-full pt-24 pb-16 flex-1">
-        <div className="max-w-[1240px] w-full mx-auto px-6 flex flex-col gap-8">
-          {/* Hero / Header Area */}
-          <div className="flex flex-col gap-3">
-            <div className="inline-flex items-center gap-2 self-start px-3.5 py-1 rounded-full bg-[#ede8fc] text-[#5b46e8] text-[12px] font-semibold tracking-wide">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#5b46e8]" />
-              STEP 3: PRE-FLIGHT PRIVACY CHECK
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-[#161427] tracking-tight">
-              Review what will leave your device
+    <div className="h-dvh flex flex-col bg-[#faf9fe] overflow-hidden">
+      {/* Background: faint grid */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-0 overflow-hidden select-none"
+      >
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, rgba(91, 70, 232, 0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(91, 70, 232, 0.06) 1px, transparent 1px)",
+            backgroundSize: "64px 64px",
+            maskImage:
+              "radial-gradient(ellipse 72% 65% at 50% 50%, rgba(0,0,0,0.14) 0%, rgba(0,0,0,0.85) 58%, transparent 100%)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse 72% 65% at 50% 50%, rgba(0,0,0,0.14) 0%, rgba(0,0,0,0.85) 58%, transparent 100%)",
+          }}
+        />
+      </div>
+
+      {/* Header: minimal, Step 2 active */}
+      <div className="relative z-20 flex-shrink-0">
+        <Header activeStep={2} minimal />
+      </div>
+
+      {/* Main content area — fills between header and action bar */}
+      <main className="relative z-10 flex-1 min-h-0 flex flex-col pt-[88px] px-4 sm:px-6 pb-4">
+        <div className="max-w-[1240px] w-full mx-auto flex flex-col flex-1 min-h-0">
+          {/* Title block */}
+          <div className="text-center pt-4 pb-3 flex-shrink-0">
+            <h1 className="text-[28px] sm:text-[34px] font-extrabold text-[#161427] tracking-tight leading-tight">
+              Check what gets sent
             </h1>
-            <p className="text-[15px] text-[#47464c] max-w-3xl leading-relaxed">
-              Left is your original story (stays strictly on this computer). Right is the exact anonymized text that will be sent to draft your letter. Check or tweak before anything is sent.
+            <p className="text-[14px] sm:text-[15px] text-[#5f5c72] mt-1.5 [text-wrap:balance]">
+              Your real details stay on this device. Click a highlight to show
+              it again, or select any text to hide it.
             </p>
           </div>
 
-          {/* Three-Column Cards Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-            {/* Card 1: Original Story */}
-            <div className="lg:col-span-4 flex flex-col bg-white rounded-2xl p-6 shadow-sm border border-[#ece8f6] justify-between transition-all hover:shadow-md">
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between pb-3.5 border-b border-[#f4f3f8]">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-[#ede8fc] flex items-center justify-center text-[#5b46e8]">
-                      <span className="material-symbols-outlined text-[18px]">laptop_chromebook</span>
-                    </div>
-                    <span className="font-semibold text-[16px] text-[#161427]">Your original story</span>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ede8fc] text-[#5b46e8] text-[12px] font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#5b46e8]" /> On your device
-                  </span>
-                </div>
-                <div className="bg-[#faf9fe] rounded-xl p-5 text-[14px] text-[#161427] leading-[2.3] border border-[#f0ecfc]">
-                  {story.trim()
-                    ? originalSegments.map((segment, index) =>
-                        segment.highlighted ? (
-                          <span key={`${segment.text}-${index}`} className="bg-[#ede8fc] text-[#4f3bd4] font-medium px-2 py-0.5 rounded-md inline-block border border-purple-400/40">
-                            {segment.text}
-                          </span>
-                        ) : (
-                          <React.Fragment key={`${segment.text}-${index}`}>{segment.text}</React.Fragment>
-                        ),
-                      )
-                    : "No story entered."}
-                </div>
-                <div className="pt-4 mt-4 flex items-center justify-between text-[#78767d] text-[13px] font-medium border-t border-[#f4f3f8]">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#5b46e8] text-[18px]">verified_user</span>
-                    <span>{entities.length} private details protected locally</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2: Sent to Cloud */}
-            <div className="lg:col-span-4 flex flex-col bg-white rounded-2xl p-6 shadow-sm border border-[#ece8f6] justify-between transition-all hover:shadow-md">
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between pb-3.5 border-b border-[#f4f3f8]">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-[#ede8fc] flex items-center justify-center text-[#5b46e8]">
-                      <span className="material-symbols-outlined text-[18px]">cloud_sync</span>
-                    </div>
-                    <span className="font-semibold text-[16px] text-[#161427]">Sent to cloud</span>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ede8fc] text-[#5b46e8] text-[12px] font-semibold">
-                    <span className="material-symbols-outlined text-[14px]">visibility_off</span> Sanitized payload
-                  </span>
-                </div>
-                <div className="bg-[#faf9fe] rounded-xl p-5 text-[14px] text-[#161427] leading-[2.3] border border-[#f0ecfc]">
-                  {story.trim()
-                    ? redactedSegments.map((segment, index) =>
-                        segment.token ? (
-                          <span key={`${segment.text}-${index}`} className="bg-[#5b46e8] text-white px-2 py-0.5 rounded-md font-mono font-medium text-xs inline-block shadow-sm">
-                            {segment.text}
-                          </span>
-                        ) : (
-                          <React.Fragment key={`${segment.text}-${index}`}>{segment.text}</React.Fragment>
-                        ),
-                      )
-                    : "No story entered."}
-                </div>
-                <div className="pt-4 mt-4 flex items-center justify-between text-[#78767d] text-[13px] font-medium border-t border-[#f4f3f8]">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[#5b46e8] text-[18px]">security</span>
-                    <span>Zero personal data leaves your device</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3: Execution Context */}
-            <div className="lg:col-span-4 flex flex-col justify-between bg-[#161427] text-white p-6 rounded-2xl shadow-xl border border-white/10 relative overflow-hidden">
-              <div className="flex flex-col gap-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#7857f8] animate-pulse" />
-                    <span className="text-[11px] font-semibold tracking-wider text-[#a59fe0] uppercase font-mono">WHERE EACH STEP RUNS</span>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-[#5b46e8] flex items-center justify-center text-white shadow-md shadow-[#5b46e8]/40">
-                    <span className="material-symbols-outlined text-[17px]">lock</span>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2.5">
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 transition-colors hover:bg-white/10">
-                    <span className="text-[13px] text-white font-medium">Find private details</span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#5b46e8]/20 text-purple-200 border border-purple-400/40 text-[11px] font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#7857f8]" /> On your device
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 transition-colors hover:bg-white/10">
-                    <span className="text-[13px] text-white font-medium">Write the letter</span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 text-purple-200 border border-white/10 text-[11px] font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#c8beff]" /> In the cloud
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 transition-colors hover:bg-white/10">
-                    <span className="text-[13px] text-white font-medium">Put details back</span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#5b46e8]/20 text-purple-200 border border-purple-400/40 text-[11px] font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#7857f8]" /> On your device
-                    </span>
-                  </div>
-                </div>
-                <div className="pt-4 mt-4 border-t border-white/10 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[16px] text-[#7857f8]">info</span>
-                  <p className="text-[12px] text-[#a59fe0]">Only the text you approve goes to the cloud.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Detected Details Management Card */}
-          <div className="bg-white rounded-2xl p-7 shadow-sm border border-[#ece8f6] flex flex-col gap-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-[#161427] tracking-tight">Detected private details ({entities.length})</h2>
-                <p className="text-[13px] text-[#78767d] mt-1">Check what was automatically flagged or add any sensitive detail we might have missed.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#ede8fc] text-[#5b46e8] text-[13px] font-semibold hover:bg-[#e0d8fa] transition-colors self-start sm:self-center shadow-sm"
-                  onClick={() => setShowModal(true)}
-                >
-                  <span className="material-symbols-outlined text-[17px]">add</span>
-                  <span>Add a missed detail</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Inline Quick Add Bar */}
-            <div className="p-3.5 rounded-xl bg-[#faf9fe] border border-[#ece8f6] flex flex-col md:flex-row items-center gap-3">
-              <div className="flex-1 w-full">
-                <input
-                  className="w-full px-4 py-2.5 rounded-xl bg-white text-[#161427] text-[14px] border border-[#ece8f6] focus:outline-none focus:ring-2 focus:ring-[#5b46e8]/30 placeholder:text-[#9b99a5]"
-                  placeholder="e.g. Apt 4B, Metro Bank, or John"
-                  type="text"
-                  value={inlineVal}
-                  onChange={(e) => setInlineVal(e.target.value)}
-                />
-              </div>
-              <div className="w-full md:w-56">
-                <select
-                  className="w-full px-4 py-2.5 rounded-xl bg-white text-[#161427] text-[14px] border border-[#ece8f6] focus:outline-none focus:ring-2 focus:ring-[#5b46e8]/30 cursor-pointer"
-                  value={inlineType}
-                  onChange={(e) => setInlineType(e.target.value)}
-                >
-                  <option value="Person">Person Name</option>
-                  <option value="Address">Street / Building Address</option>
-                  <option value="Date">Date / Timeline</option>
-                  <option value="Amount">Amount / Financial</option>
-                  <option value="Phone">Phone / Contact</option>
-                  <option value="Lease">Account / Reference #</option>
-                </select>
-              </div>
-              <button
-                className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-[#5b46e8] hover:bg-[#4f3bd4] text-white font-medium text-[13px] transition-colors shrink-0 shadow-sm shadow-[#5b46e8]/20"
-                onClick={handleAddInline}
-                type="button"
-              >
-                Add Protection
-              </button>
-            </div>
-
-            {/* Table of Detected Items */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-[14px]">
-                <thead>
-                  <tr className="text-[#78767d] text-[11px] font-semibold tracking-wider uppercase border-b border-[#f4f3f8]">
-                    <th className="py-3 px-4 font-semibold">ORIGINAL PRIVATE VALUE</th>
-                    <th className="py-3 px-4 font-semibold">DETECTED CATEGORY</th>
-                    <th className="py-3 px-4 font-semibold">SENT PLACEHOLDER</th>
-                    <th className="py-3 px-4 font-semibold">DEVICE STATUS</th>
-                    <th className="py-3 px-4 text-right font-semibold">ACTION</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f4f3f8]">
-                  {entities.map(item => (
-                    <tr key={item.id} className="hover:bg-[#faf9fe] transition-colors">
-                      <td className="py-3.5 px-4 font-semibold text-[#161427]">
-                        <span className="inline-block px-2.5 py-1 rounded-md bg-[#faf9fe] border border-[#f0ecfc]">{item.text}</span>
-                      </td>
-                      <td className="py-3.5 px-4 text-[#78767d] text-[13px]">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#f4f3f8] text-[#47464c] text-[12px] font-medium">{item.category}</span>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className="inline-block px-2.5 py-0.5 rounded font-mono font-medium text-xs bg-[#5b46e8] text-white shadow-sm">{item.token}</span>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ede8fc] text-[#5b46e8] text-[12px] font-semibold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#5b46e8]" /> Protected locally
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <button
-                          className="p-1.5 rounded-full hover:bg-[#f0ecfc] text-[#9b99a5] hover:text-[#ba1a1a] transition-colors"
-                          onClick={() => removeEntity(item.id)}
-                          title="Remove protection"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">close</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Bottom Approval & Action Bar */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-[#ece8f6] flex flex-col md:flex-row items-center justify-between gap-5">
-            <button
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#faf9fe] hover:bg-[#f0ecfc] text-[#161427] border border-[#ece8f6] transition-colors text-[13px] font-medium shadow-sm"
-              onClick={() => navigate('/')}
-              type="button"
-            >
-              <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-              <span>Back to story</span>
-            </button>
-            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-[#ede8fc] text-[#5b46e8] text-[13px] font-medium text-center md:text-left border border-purple-400/40">
-              <span className="material-symbols-outlined text-[#5b46e8] text-[18px] shrink-0">verified_user</span>
-              <span>Only substituted tokens leave your machine. Your personal names and references never leave this browser.</span>
-            </div>
-            {approvalError && (
-              <p
-                className="w-full md:max-w-sm text-center md:text-right text-[13px] font-semibold text-[#8a3d3d]"
-                role="alert"
-              >
-                {approvalError}
-              </p>
+          {/* Unified Comparison Card — one scroll container, aligned paragraph rows */}
+          <section className="relative flex-1 min-h-0 flex flex-col bg-white rounded-2xl border border-[#e6e2f2] shadow-[0_12px_36px_-12px_rgba(22,20,39,0.08)] overflow-hidden">
+            {canScrollUp && (
+              <div className="pointer-events-none absolute inset-x-0 top-[53px] h-6 bg-gradient-to-b from-white to-transparent z-30" />
             )}
-            <button
-              className="w-full md:w-auto inline-flex items-center justify-center gap-2 px-7 py-3 rounded-full bg-[#161427] hover:bg-[#5b46e8] text-white text-[14px] font-semibold shadow-md shadow-[#161427]/10 transition-all hover:shadow-[#5b46e8]/30 cursor-pointer"
-              onClick={handleApprove}
-              type="button"
+
+            <div
+              ref={scrollAreaRef}
+              tabIndex={0}
+              onScroll={updateScrollFades}
+              onMouseUp={handleTextSelection}
+              onKeyUp={handleTextSelection}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowRight") {
+                  e.preventDefault();
+                  stepToDetail(1);
+                } else if (e.key === "ArrowLeft") {
+                  e.preventDefault();
+                  stepToDetail(-1);
+                }
+              }}
+              aria-label="Story comparison panels"
+              className="relative flex-1 min-h-0 overflow-y-auto focus:outline-none"
             >
-              <span>Approve and write letter</span>
-              <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-            </button>
-          </div>
+              {/* Sticky Column Headers */}
+              <div className="sticky top-0 z-20 grid grid-cols-1 min-[900px]:grid-cols-2 min-[900px]:divide-x divide-[#f0edf8] bg-white/95 backdrop-blur-sm border-b border-[#f0edf8]">
+                <div className="px-7 py-3.5 flex items-baseline gap-2.5">
+                  <h2 className="text-[17px] font-bold text-[#161427]">
+                    Your story
+                  </h2>
+                  <span className="text-[13px] text-[#7c7891]">
+                    stays on this device
+                  </span>
+                </div>
+                <div className="hidden min-[900px]:flex px-7 py-3.5 items-baseline gap-2.5">
+                  <h2 className="text-[17px] font-bold text-[#161427]">
+                    What the AI sees
+                  </h2>
+                  <span className="text-[13px] text-[#7c7891]">
+                    this is what gets sent
+                  </span>
+                </div>
+              </div>
+
+              {/* Selection Popup */}
+              {selectionPopup && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={handleHideSelected}
+                  style={{
+                    left: `${selectionPopup.x}px`,
+                    top: `${selectionPopup.y}px`,
+                    transform: "translateX(-50%)",
+                  }}
+                  className="absolute z-30 px-3.5 py-1.5 rounded-full bg-[#161427] text-white text-xs font-semibold shadow-lg hover:bg-[#5b46e8] transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  Hide this
+                </button>
+              )}
+
+              {/* Paragraph Rows */}
+              {story.trim() ? (
+                <div className="py-5">
+                  {rows.map((row) => {
+                    if (row.isEmpty) {
+                      return <div key={`row-${row.index}`} className="h-3" />;
+                    }
+
+                    let offsetInLine = 0;
+
+                    return (
+                      <div
+                        key={`row-${row.index}`}
+                        ref={(el) => {
+                          if (el) rowRefs.current.set(row.index, el);
+                          else rowRefs.current.delete(row.index);
+                        }}
+                        className="grid grid-cols-1 min-[900px]:grid-cols-2 min-[900px]:divide-x divide-[#f0edf8]"
+                      >
+                        {/* Left Column: Original */}
+                        <div
+                          className={`px-7 py-1.5 text-[18px] leading-[1.75] break-words max-[799px]:text-[16px] transition-opacity duration-150 ${
+                            activeToken ? "text-[#4b5563]/45" : "text-[#4b5563]"
+                          }`}
+                        >
+                          {row.origSegments.map((segment, segIdx) => {
+                            const currentOffset = offsetInLine;
+                            offsetInLine += segment.text.length;
+
+                            if (!segment.highlighted) {
+                              return (
+                                <React.Fragment
+                                  key={`orig-${row.index}-${segIdx}`}
+                                >
+                                  {renderPlainWithHints(
+                                    segment.text,
+                                    row.origLine,
+                                    currentOffset,
+                                    `p-${row.index}-${segIdx}`,
+                                  )}
+                                </React.Fragment>
+                              );
+                            }
+
+                            const entity = entityByLowerText.get(
+                              segment.text.toLocaleLowerCase(),
+                            );
+                            const token = entity?.token ?? null;
+                            const isActive =
+                              token !== null && activeToken === token;
+                            const isFlashing =
+                              token !== null && flashingToken === token;
+                            const isDimmed =
+                              activeToken !== null && !isActive;
+
+                            return (
+                              <span
+                                key={`orig-${row.index}-${segIdx}`}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => handleUnhideValue(segment.text)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    handleUnhideValue(segment.text);
+                                  }
+                                }}
+                                onMouseEnter={() =>
+                                  token && setHoveredToken(token)
+                                }
+                                onMouseLeave={() => setHoveredToken(null)}
+                                onFocus={() => token && setHoveredToken(token)}
+                                onBlur={() => setHoveredToken(null)}
+                                title="Click or press Enter to show again"
+                                className={`inline-block px-2.5 py-0.5 mx-0.5 rounded-lg text-[16px] font-medium transition-all cursor-pointer border focus:outline-none ${
+                                  isFlashing
+                                    ? "bg-[#5b46e8] text-white border-[#5b46e8] ring-4 ring-[#5b46e8]/45 scale-[1.03] shadow-md opacity-100"
+                                    : isActive
+                                      ? "bg-[#ede8fc] text-[#4f3bd4] border-[#5b46e8] ring-4 ring-[#5b46e8]/30 shadow-sm opacity-100"
+                                      : isDimmed
+                                        ? "bg-[#ede8fc] text-[#4f3bd4] border-[#d8cef8] opacity-45"
+                                        : "bg-[#ede8fc] text-[#4f3bd4] border-[#d8cef8] hover:bg-[#e3dbfc]"
+                                }`}
+                              >
+                                {segment.text}
+                              </span>
+                            );
+                          })}
+                        </div>
+
+                        {/* Right Column: Sanitized */}
+                        <div
+                          className={`px-7 py-1.5 text-[18px] leading-[1.75] break-words max-[799px]:text-[16px] max-[899px]:bg-[#faf9fe]/60 max-[899px]:border-b max-[899px]:border-[#f0edf8] max-[899px]:pb-3 max-[899px]:mb-2 transition-opacity duration-150 ${
+                            activeToken ? "text-[#4b5563]/45" : "text-[#4b5563]"
+                          }`}
+                        >
+                          <span className="min-[900px]:hidden block text-[11px] uppercase tracking-wider font-semibold text-[#7c7891] mb-0.5">
+                            What the AI sees
+                          </span>
+                          {row.redSegments.map((segment, segIdx) => {
+                            if (!segment.token) {
+                              return (
+                                <React.Fragment
+                                  key={`red-${row.index}-${segIdx}`}
+                                >
+                                  {segment.text}
+                                </React.Fragment>
+                              );
+                            }
+
+                            const isActive = activeToken === segment.text;
+                            const isFlashing = flashingToken === segment.text;
+                            const isDimmed =
+                              activeToken !== null && !isActive;
+
+                            return (
+                              <span
+                                key={`red-${row.index}-${segIdx}`}
+                                tabIndex={0}
+                                onMouseEnter={() =>
+                                  setHoveredToken(segment.text)
+                                }
+                                onMouseLeave={() => setHoveredToken(null)}
+                                onFocus={() => setHoveredToken(segment.text)}
+                                onBlur={() => setHoveredToken(null)}
+                                className={`inline-block px-2.5 py-0.5 mx-0.5 rounded-lg font-sans font-semibold text-[16px] transition-all cursor-default focus:outline-none ${
+                                  isFlashing
+                                    ? "bg-[#161427] text-white ring-4 ring-[#5b46e8]/45 scale-[1.04] shadow-md opacity-100"
+                                    : isActive
+                                      ? "bg-[#5b46e8] text-white ring-4 ring-[#5b46e8]/35 shadow-md opacity-100"
+                                      : isDimmed
+                                        ? "bg-[#5b46e8] text-white opacity-45"
+                                        : "bg-[#5b46e8] text-white shadow-sm"
+                                }`}
+                              >
+                                {segment.text}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-7 text-[18px] text-[#4b5563]">
+                  No story entered.
+                </div>
+              )}
+            </div>
+
+            {canScrollDown && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent z-30" />
+            )}
+          </section>
         </div>
       </main>
 
-      {/* SCREEN 6 Modal: Add a missed detail dialog */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#161427]/40 backdrop-blur-md">
-          <div className="bg-white border border-[#ece8f6] rounded-2xl sm:rounded-3xl shadow-xl max-w-lg w-full p-6 sm:p-8 flex flex-col gap-6 relative transition-all">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex flex-col gap-1.5">
-                <div className="inline-flex items-center gap-1.5 self-start px-2.5 py-0.5 rounded-full bg-[#ede8fc] text-[#5b46e8] text-[11px] font-semibold tracking-wider uppercase">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#5b46e8]" />
-                  Manual Redaction
-                </div>
-                <h2 className="text-2xl font-bold text-[#161427] tracking-tight">Add a missed detail</h2>
-                <p className="text-[14px] text-[#47464c] leading-relaxed">
-                  Type or paste any sensitive text that was missed. We will automatically replace every match in your story with a safe placeholder.
-                </p>
-              </div>
-              <button
-                className="w-8 h-8 rounded-full flex items-center justify-center text-[#9b99a5] hover:text-[#161427] hover:bg-[#ede8fc] transition-colors shrink-0"
-                onClick={() => setShowModal(false)}
-                type="button"
-              >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
+      {/* Action bar — pinned at bottom */}
+      <div className="relative z-20 flex-shrink-0 bg-white/90 backdrop-blur-md border-t border-[#e6e2f2] shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
+        <div className="max-w-[1240px] w-full mx-auto px-4 sm:px-6">
+          {approvalError && (
+            <div
+              className="rounded-xl border border-[#fecaca] bg-[#fef2f2] px-4 py-2.5 text-sm text-[#8a3d3d] text-center mt-2"
+              role="alert"
+            >
+              {approvalError}
             </div>
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[13px] font-semibold text-[#161427]">Text to protect</label>
-                <input
-                  className="w-full px-4 py-3 rounded-xl bg-[#faf9fe] text-[#161427] text-[14px] font-medium border border-[#ece8f6] focus:outline-none focus:ring-2 focus:ring-[#5b46e8]/30 focus:border-[#5b46e8] placeholder:text-[#9b99a5] transition-all"
-                  type="text"
-                  value={modalInput}
-                  onChange={(e) => setModalInput(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[13px] font-semibold text-[#161427]">Detail type</label>
-                <div className="relative">
-                  <select
-                    className="w-full appearance-none px-4 py-3 rounded-xl bg-[#faf9fe] text-[#161427] text-[14px] font-medium border border-[#ece8f6] focus:outline-none focus:ring-2 focus:ring-[#5b46e8]/30 focus:border-[#5b46e8] cursor-pointer transition-all"
-                    value={modalType}
-                    onChange={(e) => setModalType(e.target.value)}
+          )}
+          <div className="h-[72px] flex items-center justify-between gap-4 max-[599px]:flex-col max-[599px]:h-auto max-[599px]:py-3 max-[599px]:gap-2.5">
+            {/* Back button */}
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-white border border-[#e6e2f2] text-[#47445a] hover:text-[#161427] hover:bg-[#f4f3f8] text-[15px] font-semibold transition-colors cursor-pointer shadow-sm max-[599px]:w-full max-[599px]:order-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                arrow_back
+              </span>
+              <span>Back</span>
+            </button>
+
+            {/* Step-through control — centered */}
+            <div className="flex items-center justify-center gap-3 text-[14px] sm:text-[15px] text-[#3f3d4d] tabular-nums max-[599px]:order-1 flex-wrap">
+              <strong className="font-bold text-[#161427]">
+                {entities.length}{" "}
+                {entities.length === 1 ? "detail" : "details"} hidden
+              </strong>
+              {stepItems.length > 0 && (
+                <div className="inline-flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => stepToDetail(-1)}
+                    aria-label="Previous detail"
+                    className="w-7 h-7 rounded-lg border border-[#e6e2f2] bg-white hover:bg-[#f4f3f8] text-[#161427] flex items-center justify-center text-xs transition-colors cursor-pointer"
                   >
-                    <option value="Address">Address</option>
-                    <option value="Person">Person Name</option>
-                    <option value="Lease">Lease Reference</option>
-                    <option value="Account">Account / Bank Number</option>
-                    <option value="Phone">Phone Number</option>
-                    <option value="Email">Email Address</option>
-                    <option value="Amount">Amount / Currency</option>
-                    <option value="Date">Date</option>
-                    <option value="Other">Other Private Detail</option>
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-[#78767d]">
-                    <span className="material-symbols-outlined text-[20px]">expand_more</span>
-                  </div>
+                    ◀
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => stepToDetail(1)}
+                    aria-label="Next detail"
+                    className="w-7 h-7 rounded-lg border border-[#e6e2f2] bg-white hover:bg-[#f4f3f8] text-[#161427] flex items-center justify-center text-xs transition-colors cursor-pointer"
+                  >
+                    ▶
+                  </button>
+                  <span className="text-[13px] text-[#5f5c72] ml-1">
+                    Detail {activeDetailIndex + 1} of {stepItems.length}
+                  </span>
                 </div>
-              </div>
-              <div className="p-4 rounded-xl bg-[#faf9fe] border border-[#f0ecfc] flex flex-col gap-2.5">
-                <div className="flex items-center justify-between flex-wrap gap-2 text-[13px]">
-                  <span className="text-[#47464c]">Outgoing placeholder preview:</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[#78767d] text-xs">replaces with</span>
-                    <span className="inline-block px-2.5 py-0.5 rounded font-mono font-medium text-xs bg-[#5b46e8] text-white shadow-sm">
-                      {`{${modalType} ${entities.length + 1}}`}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 text-[12px] text-[#5b46e8] font-medium pt-1 border-t border-[#f0ecfc]">
-                  <span className="material-symbols-outlined text-[16px]">verified_user</span>
-                  <span>Protected on your device. Never leaves your computer.</span>
-                </div>
-              </div>
+              )}
             </div>
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                className="px-5 py-2.5 rounded-full text-[13px] font-semibold text-[#78767d] hover:text-[#161427] hover:bg-[#ede8fc] transition-colors"
-                onClick={() => setShowModal(false)}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#161427] hover:bg-[#5b46e8] text-white text-[13px] font-semibold shadow-md shadow-[#161427]/10 transition-all hover:shadow-[#5b46e8]/30"
-                onClick={handleAddModal}
-                type="button"
-              >
-                <span>Add detail & protect</span>
-                <span className="material-symbols-outlined text-[17px]">check</span>
-              </button>
-            </div>
+
+            {/* Primary button */}
+            <button
+              type="button"
+              onClick={handleApprove}
+              className="inline-flex items-center justify-center gap-2 h-11 px-7 rounded-xl bg-[#5b46e8] hover:bg-[#4f3bd4] text-white text-[15px] font-semibold shadow-md transition-all active:scale-[0.98] cursor-pointer max-[599px]:w-full max-[599px]:order-3"
+            >
+              <span>Looks good, write my letter</span>
+              <span className="material-symbols-outlined text-[20px]">
+                arrow_forward
+              </span>
+            </button>
           </div>
         </div>
-      )}
-
-      <Footer />
+      </div>
     </div>
   );
 }

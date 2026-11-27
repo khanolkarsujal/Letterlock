@@ -17,6 +17,7 @@ const CATEGORY_LABELS: Record<PlaceholderKind, string> = {
   account: "Account",
   policy: "Policy",
   organization: "Organization",
+  reference: "ID / Reference",
   other: "Private detail",
 };
 

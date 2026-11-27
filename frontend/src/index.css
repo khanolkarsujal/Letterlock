@@ -21,3 +21,92 @@
     .animate-gentle-pulse {
       animation: subtlePulse 3s ease-in-out infinite;
     }
+    @keyframes starTwinkle {
+      0%, 100% { opacity: 0.45; transform: scale(1); }
+      50% { opacity: 0.9; transform: scale(1.08); }
+    }
+    @keyframes slowDrift {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-6px); }
+    }
+    @keyframes scanSweep {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(220%); }
+    }
+    @keyframes indeterminateBar {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(300%); }
+    }
+    .animate-star-twinkle {
+      animation: starTwinkle 5s ease-in-out infinite;
+    }
+    .animate-slow-drift {
+      animation: slowDrift 20s ease-in-out infinite;
+    }
+    .animate-scan-sweep {
+      animation: scanSweep 1.6s ease-in-out infinite;
+    }
+    .animate-indeterminate-bar {
+      animation: indeterminateBar 1.4s ease-in-out infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .animate-star-twinkle,
+      .animate-slow-drift,
+      .animate-scan-sweep,
+      .animate-indeterminate-bar {
+        animation: none;
+      }
+    }
+
+    /* Print stylesheet: show only the letter */
+    @media print {
+      body {
+        background: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      /* Hide everything except the letter textarea */
+      header, nav, footer,
+      [aria-hidden="true"],
+      .print\\:hidden {
+        display: none !important;
+      }
+      .print\\:overflow-visible {
+        overflow: visible !important;
+      }
+      .print\\:h-auto {
+        height: auto !important;
+      }
+      .print\\:shadow-none {
+        box-shadow: none !important;
+      }
+      .print\\:border-none {
+        border: none !important;
+      }
+      .print\\:rounded-none {
+        border-radius: 0 !important;
+      }
+      .print\\:static {
+        position: static !important;
+      }
+      .print\\:p-0 {
+        padding: 0 !important;
+      }
+      .print\\:pt-0 {
+        padding-top: 0 !important;
+      }
+      .print\\:px-0 {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+      .print\\:text-\\[12pt\\] {
+        font-size: 12pt !important;
+      }
+      .print\\:leading-\\[1\\.6\\] {
+        line-height: 1.6 !important;
+      }
+      @page {
+        size: A4;
+        margin: 20mm;
+      }
+    }

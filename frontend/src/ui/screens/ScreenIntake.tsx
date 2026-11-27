@@ -1,222 +1,255 @@
-import React from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
-import Footer from "../components/Footer";
 import { useApp } from "../state/AppContext";
-import { defaultStory } from "../state/mockData";
+import { exampleSalaryStory } from "../state/mockData";
+
+const CATEGORY_TABS = [
+  { id: "deposit", label: "Deposit dispute" },
+  { id: "insurance", label: "Insurance claim" },
+  { id: "medical", label: "Medical bill" },
+  { id: "other", label: "Other" },
+] as const;
+
+function SparkleStar({ className }: { className?: string }) {
+  return (
+    <div
+      className={`hidden md:flex items-center justify-center w-8 h-8 rounded-full border border-[#5b46e8]/20 bg-[#faf9fe]/70 animate-star-twinkle ${className ?? ""}`}
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M12 2L14.2 9.8L22 12L14.2 14.2L12 22L9.8 14.2L2 12L9.8 9.8L12 2Z"
+          fill="#5b46e8"
+          fillOpacity="0.65"
+        />
+      </svg>
+    </div>
+  );
+}
 
 function ScreenIntake() {
-  const {
-    story,
-    setStory,
-    disputeType,
-    setDisputeType,
-    detectStory,
-  } = useApp();
+  const { story, setStory, disputeType, setDisputeType, detectStory } =
+    useApp();
   const navigate = useNavigate();
-
-  const wordCount = story.trim() ? story.trim().split(/\s+/).length : 0;
-  const charCount = story.length;
+  const hasStory = story.trim().length > 0;
 
   const handleInspect = () => {
+    if (!hasStory) return;
     void detectStory(story);
     navigate("/scan");
   };
 
+  const handleTryExample = () => {
+    setStory(exampleSalaryStory);
+    setDisputeType("other");
+  };
+
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header activeStep={1} />
-      <main className="w-full pt-28 pb-16 flex-1">
-        <div className="max-w-[920px] mx-auto px-6">
-          {/* Hero Banner */}
-          <div className="relative bg-gradient-to-br from-white via-[#faf9fe] to-[#f2eeff] rounded-[2rem] p-8 sm:p-10 mb-8 border border-[#e8e4f3] shadow-[0_12px_40px_-15px_rgba(95,58,221,0.07)] overflow-hidden">
-            <div className="absolute -right-16 -top-16 w-64 h-64 bg-[#dfd6ff] rounded-full blur-3xl opacity-50 pointer-events-none"></div>
-            <div className="absolute -left-12 -bottom-12 w-56 h-56 bg-[#ece8fc] rounded-full blur-2xl opacity-60 pointer-events-none"></div>
-            <div className="relative z-10 grid grid-cols-1 sm:grid-cols-12 gap-6 sm:gap-8 items-center">
-              <div className="sm:col-span-7 flex flex-col gap-3.5">
-                <h1 className="text-3xl sm:text-4xl lg:text-[40px] font-bold text-[#161427] tracking-tight leading-tight">
-                  Write the letter.<br />
-                  <span className="text-[#5b46e8]">Keep the details.</span>
-                </h1>
-                <p className="text-[15px] sm:text-base text-[#6b6684] leading-relaxed mt-0.5">
-                  Turn a messy dispute story into a firm, professional letter—without ever sending your real name, address, or private numbers to the cloud.
-                </p>
-              </div>
-              <div className="sm:col-span-5 flex justify-center">
-                <div className="relative w-full max-w-[340px] rounded-2xl overflow-hidden shadow-[0_12px_36px_rgba(91,70,232,0.14)] border border-[#ede8fc]">
-                  <img
-                    alt="Minimalist 3D translucent frosted-glass envelope and shield in serene lilac flora"
-                    className="w-full h-48 sm:h-52 object-cover"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbtOnZi11T-0W5CUmUsFEIz7SB2-lXF5jUgAA4_KS1VRk1WaPbO2AFN-ePU5yqy8tFwh_Ei5LPi4Tiuxp7B1SBNpS2xooJSD91NSgEnTmG9Fvo3_Jav-JVbWBoTYmLvJbhsQOjQl9Sa-6eJVsdsgB5bZfHc2bGPJyTuUueRSQGCS3k3Z7lJwvXpmEl8LC3j2vnpDYrE-NJaWCEzD5yQiLNeuK-tw0Vl1LLmsDJwNFH" />
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen flex flex-col bg-[#faf9fe] relative overflow-hidden">
+      {/* Decorative Background Layer */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-0 overflow-hidden select-none"
+      >
+        {/* 1. Faint 64px Grid with radial mask (cleaner behind center, softer at edges) */}
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, rgba(91, 70, 232, 0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(91, 70, 232, 0.06) 1px, transparent 1px)",
+            backgroundSize: "64px 64px",
+            maskImage:
+              "radial-gradient(ellipse 68% 60% at 50% 50%, rgba(0,0,0,0.14) 0%, rgba(0,0,0,0.85) 55%, transparent 100%)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse 68% 60% at 50% 50%, rgba(0,0,0,0.14) 0%, rgba(0,0,0,0.85) 55%, transparent 100%)",
+          }}
+        />
+
+        {/* 4. Soft Purple Glow behind the card */}
+        <div
+          className="absolute left-1/2 top-[56%] -translate-x-1/2 -translate-y-1/2 w-[780px] h-[440px] rounded-full"
+          style={{
+            background:
+              "radial-gradient(circle, rgba(91, 70, 232, 0.09) 0%, rgba(237, 232, 252, 0.28) 45%, transparent 72%)",
+          }}
+        />
+
+        {/* 2. Sparkle Stars at grid intersections */}
+        <SparkleStar className="absolute top-[192px] left-[192px]" />
+        <SparkleStar className="absolute top-[256px] right-[192px] [animation-delay:1.8s]" />
+        <SparkleStar className="hidden lg:flex absolute bottom-[128px] left-[256px] [animation-delay:3.2s]" />
+
+        {/* Corner Labels (Firecrawl-style, purple/gray only) */}
+        <span className="hidden md:inline-block absolute top-28 left-10 font-mono text-[11px] tracking-wider text-[#9b96b0]/70">
+          [ LOCAL ]
+        </span>
+        <span className="hidden md:inline-block absolute top-28 right-10 font-mono text-[11px] tracking-wider text-[#9b96b0]/70">
+          [ ON-DEVICE ]
+        </span>
+        <span className="hidden md:inline-block absolute bottom-10 left-10 font-mono text-[11px] tracking-wider text-[#9b96b0]/70">
+          [ PLACEHOLDER ]
+        </span>
+        <span className="hidden md:inline-block absolute bottom-10 right-10 font-mono text-[11px] tracking-wider text-[#9b96b0]/70">
+          [ REDACTED ]
+        </span>
+
+        {/* 3. Blurred Monospace Letter Snippets in margins & corners */}
+        <div className="hidden md:block absolute top-[210px] left-8 xl:left-14 max-w-[235px] font-mono text-[11px] leading-relaxed text-[#5f5c72] opacity-40 blur-[2px] animate-slow-drift">
+          <p>
+            Dear{" "}
+            <span className="bg-[#ede8fc] text-[#5b46e8] px-1.5 py-0.5 rounded font-semibold">
+              [NAME]
+            </span>
+            ,
+          </p>
+          <p className="mt-1">
+            I am writing about my deposit of ₹45,800 held at{" "}
+            <span className="bg-[#ede8fc] text-[#5b46e8] px-1.5 py-0.5 rounded font-semibold">
+              [ADDRESS]
+            </span>
+            .
+          </p>
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="inline-block h-2 w-16 rounded-full bg-[#e3e2e7]" />
+            <span className="inline-block h-2 w-10 rounded-full bg-[#e3e2e7]" />
           </div>
+        </div>
 
-          {/* What is Letterlock? 3 Columns */}
-          <section className="mb-8">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-5 px-1">
-              <div>
-                <h2 className="text-2xl sm:text-3xl font-bold text-[#161427] tracking-tight">What is Letterlock?</h2>
-              </div>
-              <p className="text-sm text-[#6b6684] max-w-md leading-relaxed">
-                A privacy-first letter writer that keeps your personal details on your own device while AI helps draft your response.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gradient-to-br from-[#ede8fc] to-[#e4dffa] p-6 rounded-[1.75rem] border border-[#dcd4f7] flex flex-col justify-between gap-4 shadow-[0_4px_20px_rgb(22,20,39,0.03)]">
-                <h3 className="font-bold text-lg text-[#161427] leading-snug">1. Paste your story</h3>
-                <p className="text-xs sm:text-[13px] text-[#47445a] leading-relaxed">Write what happened in your own words, with real names and numbers included.</p>
-              </div>
-              <div className="bg-[#1b192c] p-6 rounded-[1.75rem] border border-[#2d2945] flex flex-col justify-between gap-4 shadow-[0_8px_24px_rgba(22,20,39,0.12)]">
-                <h3 className="font-bold text-lg text-white leading-snug">2. Private details stay here</h3>
-                <p className="text-xs sm:text-[13px] text-[#c8c3de] leading-relaxed">Your device automatically swaps names, addresses, and phone numbers for safe placeholders.</p>
-              </div>
-              <div className="bg-[#1b192c] p-6 rounded-[1.75rem] border border-[#2d2945] flex flex-col justify-between gap-4 shadow-[0_8px_24px_rgba(22,20,39,0.12)]">
-                <h3 className="font-bold text-lg text-white leading-snug">3. Get a firm letter</h3>
-                <p className="text-xs sm:text-[13px] text-[#c8c3de] leading-relaxed">AI drafts a professional letter using only placeholders, then your device puts your real details back.</p>
-              </div>
-            </div>
-          </section>
+        <div className="hidden md:block absolute top-[225px] right-8 xl:right-14 max-w-[235px] font-mono text-[11px] leading-relaxed text-[#5f5c72] opacity-40 blur-[2px] animate-slow-drift [animation-delay:4s]">
+          <p>
+            Please contact me at{" "}
+            <span className="bg-[#ede8fc] text-[#5b46e8] px-1.5 py-0.5 rounded font-semibold">
+              [PHONE]
+            </span>{" "}
+            ref{" "}
+            <span className="bg-[#ede8fc] text-[#5b46e8] px-1.5 py-0.5 rounded font-semibold">
+              [REF #]
+            </span>
+          </p>
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="inline-block h-2 w-20 rounded-full bg-[#e3e2e7]" />
+            <span className="inline-block h-2 w-12 rounded-full bg-[#e3e2e7]" />
+          </div>
+        </div>
 
-          {/* Intake Workspace Card */}
-          <div className="bg-white rounded-[2rem] p-6 sm:p-8 border border-[#e8e4f3] shadow-[0_8px_30px_rgb(22,20,39,0.04)] flex flex-col gap-8">
-            {/* Dispute Type Radios */}
-            <div className="flex flex-col gap-3">
-              <label className="text-sm font-bold text-[#161427] tracking-tight">What is it about?</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <label
-                  onClick={() => setDisputeType("deposit")}
-                  className={`group relative flex items-center gap-3.5 p-4 rounded-2xl cursor-pointer transition-all ${
-                    disputeType === "deposit"
-                      ? "bg-[#f5f2fe] border-2 border-[#5b46e8] shadow-xs"
-                      : "bg-[#faf9fe] border border-[#e8e4f3] hover:border-[#cfc7ee] hover:bg-[#f6f4fd]"
-                  }`}
-                >
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                    disputeType === "deposit" ? "bg-[#5b46e8] text-white" : "border-2 border-[#cfc9e2]"
-                  }`}>
-                    {disputeType === "deposit" && <span className="material-symbols-outlined text-[16px]">check</span>}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-[#161427]">Deposit dispute</span>
-                    <span className="text-xs text-[#6b6684]">Tenancy & Security Bond</span>
-                  </div>
-                </label>
-                <label
-                  onClick={() => setDisputeType("insurance")}
-                  className={`group relative flex items-center gap-3.5 p-4 rounded-2xl cursor-pointer transition-all ${
-                    disputeType === "insurance"
-                      ? "bg-[#f5f2fe] border-2 border-[#5b46e8] shadow-xs"
-                      : "bg-[#faf9fe] border border-[#e8e4f3] hover:border-[#cfc7ee] hover:bg-[#f6f4fd]"
-                  }`}
-                >
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                    disputeType === "insurance" ? "bg-[#5b46e8] text-white" : "border-2 border-[#cfc9e2]"
-                  }`}>
-                    {disputeType === "insurance" && <span className="material-symbols-outlined text-[16px]">check</span>}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-semibold text-[#161427]">Insurance claim</span>
-                    <span className="text-xs text-[#6b6684]">Denied Coverage & Delays</span>
-                  </div>
-                </label>
-                <label
-                  onClick={() => setDisputeType("medical")}
-                  className={`group relative flex items-center gap-3.5 p-4 rounded-2xl cursor-pointer transition-all ${
-                    disputeType === "medical"
-                      ? "bg-[#f5f2fe] border-2 border-[#5b46e8] shadow-xs"
-                      : "bg-[#faf9fe] border border-[#e8e4f3] hover:border-[#cfc7ee] hover:bg-[#f6f4fd]"
-                  }`}
-                >
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                    disputeType === "medical" ? "bg-[#5b46e8] text-white" : "border-2 border-[#cfc9e2]"
-                  }`}>
-                    {disputeType === "medical" && <span className="material-symbols-outlined text-[16px]">check</span>}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-semibold text-[#161427]">Medical bill appeal</span>
-                    <span className="text-xs text-[#6b6684]">Overcharges & Coding Error</span>
-                  </div>
-                </label>
-              </div>
-            </div>
+        <div className="hidden lg:block absolute bottom-[105px] left-10 xl:left-16 max-w-[230px] font-mono text-[11px] leading-relaxed text-[#5f5c72] opacity-35 blur-[2.5px] animate-slow-drift [animation-delay:8s]">
+          <p>
+            Account{" "}
+            <span className="bg-[#ede8fc] text-[#5b46e8] px-1.5 py-0.5 rounded font-semibold">
+              [ACCOUNT]
+            </span>{" "}
+            dated{" "}
+            <span className="bg-[#ede8fc] text-[#5b46e8] px-1.5 py-0.5 rounded font-semibold">
+              [DATE]
+            </span>
+          </p>
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="inline-block h-2 w-24 rounded-full bg-[#e3e2e7]" />
+          </div>
+        </div>
 
-            {/* Story Input */}
-            <div className="flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-bold text-[#161427] tracking-tight" htmlFor="story-input">
-                    Your story
-                  </label>
-                  <span className="px-2 py-0.5 rounded-full bg-[#f0edf8] text-[#6b6684] font-mono text-[10px] uppercase font-semibold">
-                    Stays on your device
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    className="text-xs text-[#6b6684] hover:text-[#5b46e8] transition-colors flex items-center gap-1 font-medium"
-                    onClick={() => setStory(defaultStory)}
-                    type="button"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">refresh</span> Reset Demo
-                  </button>
-                  <span className="text-xs font-mono text-[#8c86a3]">{wordCount} words</span>
-                  <span className="text-xs font-mono text-[#8c86a3]">•</span>
-                  <span className="text-xs font-mono text-[#8c86a3]">{charCount} chars</span>
-                </div>
-              </div>
+        <div className="hidden lg:block absolute bottom-[105px] right-10 xl:right-16 max-w-[230px] font-mono text-[11px] leading-relaxed text-[#5f5c72] opacity-35 blur-[2.5px] animate-slow-drift [animation-delay:12s]">
+          <p>
+            Notice to{" "}
+            <span className="bg-[#ede8fc] text-[#5b46e8] px-1.5 py-0.5 rounded font-semibold">
+              [ORGANIZATION]
+            </span>
+          </p>
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="inline-block h-2 w-14 rounded-full bg-[#e3e2e7]" />
+            <span className="inline-block h-2 w-16 rounded-full bg-[#e3e2e7]" />
+          </div>
+        </div>
+      </div>
 
-              <div className="relative rounded-2xl overflow-hidden bg-[#faf9fe] border border-[#e4dfef] focus-within:border-[#5b46e8] focus-within:ring-2 focus-within:ring-[#5b46e8]/10 transition-all">
-                <textarea
-                  id="story-input"
-                  value={story}
-                  onChange={(e) => setStory(e.target.value)}
-                  className="w-full bg-transparent p-5 text-[15px] text-[#161427] placeholder-[#a6a0bd] focus:outline-none resize-none leading-relaxed min-h-[140px]"
-                  rows={5}
-                />
-                <div className="bg-[#f2effa] px-4 py-2.5 border-t border-[#e8e4f3] flex flex-wrap items-center justify-between gap-2.5 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[16px] text-[#5b46e8]">shield</span>
-                    <span className="font-medium text-[#161427]">Local protection:</span>
-                    <span className="text-[#5b46e8] font-semibold">
-                      Private details will be scanned on your device next
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="px-2.5 py-0.5 rounded-full bg-white text-[#5b46e8] font-mono text-[11px] font-medium border border-[#e5e0f5] shadow-xs">Address</span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-white text-[#5b46e8] font-mono text-[11px] font-medium border border-[#e5e0f5] shadow-xs">Name</span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-white text-[#5b46e8] font-mono text-[11px] font-medium border border-[#e5e0f5] shadow-xs">Phone &amp; Ref #</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+      <Header activeStep={1} minimal />
 
-            {/* Privacy Assurance & CTA Button */}
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-5 border-t border-[#f0ecf7]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#f2effa] border border-[#e5dfff] flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-[#5b46e8] text-[20px]">lock_reset</span>
-                </div>
-                <p className="text-xs sm:text-[13px] text-[#6b6684] leading-relaxed">
-                  <strong className="text-[#161427] font-semibold">100% Private:</strong> Your story stays on this device until you approve what is sent. Private details are swapped locally before anything leaves.
-                </p>
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 sm:px-6 pt-24 pb-8">
+        <div className="w-full max-w-[720px] mx-auto flex flex-col items-center text-center">
+          {/* Headline */}
+          <h1 className="text-4xl sm:text-5xl lg:text-[54px] font-extrabold text-[#161427] tracking-tight leading-[1.08]">
+            Write the letter.
+            <br />
+            <span className="text-[#5b46e8]">Keep the details.</span>
+          </h1>
+
+          {/* One-line Subtitle */}
+          <p className="mt-4 mb-7 text-sm sm:text-base text-[#5f5c72] max-w-lg [text-wrap:balance] leading-relaxed">
+            Turn your messy story into a firm letter. Your real name and address never leave your device.
+          </p>
+
+          {/* Floating Input Card */}
+          <div className="w-full bg-white rounded-2xl border border-[#e6e2f2] shadow-[0_14px_44px_-12px_rgba(22,20,39,0.09)] focus-within:ring-4 focus-within:ring-[#5b46e8]/15 focus-within:border-[#5b46e8]/40 transition-all overflow-hidden text-left">
+            <textarea
+              id="story-input"
+              aria-label="Your dispute story"
+              value={story}
+              onChange={(e) => setStory(e.target.value)}
+              placeholder="Paste what happened, with real names and numbers. We'll hide them next."
+              rows={8}
+              className="w-full bg-transparent border-0 focus:ring-0 px-5 pt-5 pb-3 text-[15px] text-[#161427] placeholder-[#9b96b0] focus:outline-none resize-none leading-relaxed min-h-[210px]"
+            />
+
+            {/* Bottom Row Inside Card */}
+            <div className="px-4 py-3 border-t border-[#f0edf8] bg-[#fcfbfe] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div
+                className="flex flex-wrap items-center gap-1 bg-[#f4f3f8] p-1 rounded-xl"
+                role="tablist"
+                aria-label="Letter category"
+              >
+                {CATEGORY_TABS.map((tab) => {
+                  const active = disputeType === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setDisputeType(tab.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                        active
+                          ? "bg-white text-[#161427] font-semibold shadow-sm"
+                          : "text-[#6b6684] hover:text-[#161427]"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
               </div>
 
               <button
-                className="w-full sm:w-auto px-7 py-3.5 rounded-full bg-[#161427] text-white hover:bg-[#272346] hover:shadow-[0_8px_20px_rgba(22,20,39,0.18)] active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 shadow-sm font-semibold text-sm cursor-pointer shrink-0"
-                onClick={handleInspect}
                 type="button"
+                disabled={!hasStory}
+                onClick={handleInspect}
+                className="px-5 py-2.5 rounded-xl bg-[#5b46e8] hover:bg-[#4f3bd4] text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-sm shrink-0 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-[#5b46e8]"
               >
-                <span className="material-symbols-outlined text-[18px]">fingerprint</span>
                 <span>Find private details</span>
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
               </button>
             </div>
           </div>
+
+          {/* Try an example link */}
+          <button
+            type="button"
+            onClick={handleTryExample}
+            className="mt-4 text-xs sm:text-[13px] font-medium text-[#5b46e8] hover:text-[#4f3bd4] underline underline-offset-4 cursor-pointer transition-colors"
+          >
+            Try an example
+          </button>
+
+          {/* Single privacy line */}
+          <p className="mt-2.5 text-xs text-[#78767d]">
+            Your real details stay on this device. Only placeholders go to the AI.
+          </p>
         </div>
       </main>
-      <Footer />
     </div>
   );
 }

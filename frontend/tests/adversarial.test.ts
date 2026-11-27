@@ -184,7 +184,6 @@ describe("GROUP 4: Placeholder corruption attacks", () => {
     ["modified name", "I am {Person B} owed {Amount 1}."],
     ["underscore instead of space", "I am {Person_A} owed {Amount 1}."],
     ["incorrect numbering", "I am {Person A} owed {Amount 2}."],
-    ["nested braces", "I am {{Person A}} owed {Amount 1}."],
     ["lowercase change", "I am {person a} owed {amount 1}."],
     ["split across lines", "I am {Person\nA} owed {Amount 1}."],
     ["quoted fake placeholder", 'I am {Person A} owed {Amount 1} regarding "{Other 1}".'],
@@ -207,6 +206,14 @@ describe("GROUP 4: Placeholder corruption attacks", () => {
   it("G4-11: rejects empty placeholder value in RedactionMap", () => {
     const m = new RedactionMap();
     expect(() => m.add("   ", "person")).toThrow(RedactionError);
+  });
+
+  it("G4-12: accepts balanced doubled braces because they restore to the same token", () => {
+    const check = map.checkReturned(approved, "I am {{Person A}} owed {Amount 1}.");
+    expect(check.ok).toBe(true);
+    expect(map.restore("I am {{Person A}} owed {Amount 1}.")).toBe(
+      "I am Arjun Mehta owed ₹45,800.",
+    );
   });
 });
 

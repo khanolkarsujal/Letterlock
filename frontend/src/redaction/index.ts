@@ -20,6 +20,7 @@ export const PLACEHOLDER_KINDS = [
   "account",
   "policy",
   "organization",
+  "reference",
   "other",
 ] as const;
 
@@ -80,15 +81,25 @@ const TOKEN_STEMS: Record<Exclude<PlaceholderKind, "person">, string> = {
   account: "Account",
   policy: "Policy",
   organization: "Organization",
+  reference: "Reference",
   other: "Detail",
 };
 
 // Matches exactly the tokens this module creates, so other braces in a letter
 // are never mistaken for placeholders.
-const TOKEN_SOURCE = String.raw`\{(?:Person [A-Z]+|(?:Address|Date|Amount|Lease|Phone|Email|Account|Policy|Organization|Detail) \d+)\}`;
+const TOKEN_SOURCE = String.raw`\{(?:Person [A-Z]+|(?:Address|Date|Amount|Lease|Phone|Email|Account|Policy|Organization|Reference|Detail) \d+)\}`;
 
 function createTokenRegex(): RegExp {
   return new RegExp(TOKEN_SOURCE, "g");
+}
+
+/**
+ * The app writes single-brace tokens such as `{Person A}`. Older letters and
+ * models occasionally produce `{{Person A}}`; collapse a balanced pair so
+ * validation and restore accept both formats.
+ */
+function collapseDoubledBraces(text: string): string {
+  return text.replace(/\{\{([^{}\n]{1,40})\}\}/g, "{$1}");
 }
 
 function escapeRegExp(value: string): string {
@@ -280,8 +291,49 @@ export function findLeaks(
 
 /** Lists the distinct placeholder tokens present in a piece of text. */
 export function extractPlaceholders(text: string): string[] {
-  const matches = text.match(createTokenRegex());
+  const matches = collapseDoubledBraces(text).match(createTokenRegex());
   return matches ? [...new Set(matches)] : [];
+}
+
+/**
+ * Normalizes placeholder variants returned by the cloud model (such as
+ * `{person a}`, `{Person_A}`, or unbraced `Person A`) back to the exact
+ * placeholder tokens present in `approvedText`.
+ */
+export function normalizeReturnedPlaceholders(
+  returnedLetter: string,
+  approvedText: string,
+): string {
+  const approvedTokens = extractPlaceholders(approvedText);
+  if (approvedTokens.length === 0) return returnedLetter;
+
+  let normalized = returnedLetter;
+
+  // 0. Collapse double braces {{...}} to single braces {...}
+  normalized = collapseDoubledBraces(normalized);
+
+  for (const token of approvedTokens) {
+    const inner = token.slice(1, -1); // e.g. "Person A" or "Organization 1"
+    const parts = inner.split(/\s+/).map(escapeRegExp);
+    if (parts.length !== 2) continue;
+
+    const [stem, suffix] = parts;
+    // 1. Braced variants: {person a}, {Person_A}, { person - a }
+    const bracedPattern = new RegExp(
+      `\\{[\\s_-]*${stem}[\\s_-]+${suffix}[\\s_-]*\\}`,
+      "gi",
+    );
+    normalized = normalized.replace(bracedPattern, token);
+
+    // 2. Unbraced variants: "Person A", "person_a", "PERSON-A" (not already inside braces)
+    const unbracedPattern = new RegExp(
+      `(?<![\\p{L}\\p{N}{])${stem}[\\s_-]+${suffix}(?![\\p{L}\\p{N}}])`,
+      "giu",
+    );
+    normalized = normalized.replace(unbracedPattern, token);
+  }
+
+  return normalized;
 }
 
 /**
@@ -294,15 +346,16 @@ export function checkReturnedPlaceholders(
   approvedText: string,
   returnedLetter: string,
 ): ReturnedPlaceholderCheck {
+  const normalizedLetter = collapseDoubledBraces(returnedLetter);
   const approved = new Set(extractPlaceholders(approvedText));
-  const returned = new Set(extractPlaceholders(returnedLetter));
+  const returned = new Set(extractPlaceholders(normalizedLetter));
 
-  let residual = returnedLetter;
+  let residual = normalizedLetter;
   for (const token of approved) {
     residual = residual.split(token).join(" ");
   }
 
-  const allBraceTokens = returnedLetter.match(/\{[^}\n]{1,40}\}/g) ?? [];
+  const allBraceTokens = normalizedLetter.match(/\{[^}\n]{1,40}\}/g) ?? [];
   for (const token of allBraceTokens) {
     returned.add(token);
   }
@@ -329,8 +382,9 @@ export function restoreText(
   letter: string,
   entries: readonly PlaceholderEntry[],
 ): string {
+  const normalized = collapseDoubledBraces(letter);
   return entries.reduce(
     (restored, entry) => restored.split(entry.token).join(entry.value),
-    letter,
+    normalized,
   );
 }

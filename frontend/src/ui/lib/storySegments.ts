@@ -66,7 +66,7 @@ export function highlightRedactedStory(
   }
 
   const tokens = new Set(entries.map((entry) => entry.token));
-  const pattern = /\{(?:Person [A-Z]+|(?:Address|Date|Amount|Lease|Phone|Email|Account|Policy|Organization|Detail) \d+)\}/g;
+  const pattern = /\{(?:Person [A-Z]+|(?:Address|Date|Amount|Lease|Phone|Email|Account|Policy|Organization|Reference|Detail) \d+)\}/g;
   const segments: TextSegment[] = [];
   let cursor = 0;
 
@@ -100,4 +100,23 @@ export function highlightRedactedStory(
   }
 
   return segments;
+}
+
+/**
+ * Verifies that all rendered text pieces join back to the exact original
+ * string in the exact original order. Logs an error if they differ.
+ */
+export function verifyRenderedStoryOrder(
+  original: string,
+  renderedPieces: readonly string[],
+): boolean {
+  const joined = renderedPieces.join("");
+  if (joined !== original) {
+    console.error(
+      "[Letterlock] Rendered story order mismatch:",
+      { expectedLength: original.length, actualLength: joined.length },
+    );
+    return false;
+  }
+  return true;
 }

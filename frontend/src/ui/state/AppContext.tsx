@@ -11,19 +11,28 @@ import {
   type DetectionResult,
   type OnDeviceStatus,
 } from "../../detection";
-import { Entity, defaultEntities, defaultStory } from "./mockData";
+import { Entity } from "./mockData";
 import {
   buildMapAndEntities,
   entitiesFromRedactionMap,
 } from "./detectionPresentation";
 import type { ApprovedOutboundText, PlaceholderKind } from "../../redaction";
-import { extractPlaceholders, RedactionError, RedactionMap } from "../../redaction";
 import {
+  extractPlaceholders,
+  normalizeReturnedPlaceholders,
+  RedactionError,
+  RedactionMap,
+} from "../../redaction";
+import {
+  CloudDraftError,
   draftLetterInCloud,
   prewarmCloudDrafting,
   type CloudDraftResult,
 } from "../../inference/cloudDrafting";
 import { classifyDisputeType } from "../../prompts";
+import type { DraftErrorKind, DraftErrorMeta } from "./draftErrorCopy";
+
+export type { DraftErrorKind } from "./draftErrorCopy";
 
 // Shape of the context – matches the prototype exactly
 export interface AppState {
@@ -50,7 +59,7 @@ export interface AppState {
   approvedStory: ApprovedOutboundText | null;
   approveStory: () => { ok: boolean; error: string | null };
   draftStatus: "idle" | "drafting" | "success" | "error";
-  draftError: string | null;
+  draftError: DraftErrorMeta | null;
   draftResult: CloudDraftResult | null;
   finalLetter: string | null;
   startCloudDraft: () => Promise<boolean>;
@@ -61,9 +70,9 @@ export interface AppState {
 const AppContext = createContext<AppState | null>(null);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [story, setStory] = useState<string>(defaultStory);
+  const [story, setStory] = useState<string>("");
   const [disputeType, setDisputeType] = useState<string>("deposit");
-  const [entities, setEntities] = useState<Entity[]>(defaultEntities);
+  const [entities, setEntities] = useState<Entity[]>([]);
   const [toastMessage, setToastMessage] = useState<string>("");
   const [showWipeModal, setShowWipeModal] = useState<boolean>(false);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
@@ -81,12 +90,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     useState<ApprovedOutboundText | null>(null);
   const [draftStatus, setDraftStatus] =
     useState<"idle" | "drafting" | "success" | "error">("idle");
-  const [draftError, setDraftError] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<DraftErrorMeta | null>(null);
   const [draftResult, setDraftResult] = useState<CloudDraftResult | null>(null);
   const [finalLetter, setFinalLetter] = useState<string | null>(null);
   const cloudDraftController = useRef<AbortController | null>(null);
   const redactionMapRef = useRef<RedactionMap>(redactionMap);
   const detectionRequest = useRef(0);
+  const brokenRetryCount = useRef(0);
 
   const replaceRedactionMap = (nextMap: RedactionMap) => {
     redactionMapRef.current = nextMap;
@@ -140,9 +150,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const startCloudDraft = async (): Promise<boolean> => {
-    if (!approvedStory) {
+    const outbound = approvedStory;
+    if (!outbound) {
       setDraftStatus("error");
-      setDraftError("Approve the privacy review before drafting.");
+      setDraftError({
+        kind: "local_failed",
+        timedOut: false,
+        waitSeconds: 0,
+        missing: [],
+        unexpected: [],
+      });
       return false;
     }
 
@@ -153,80 +170,134 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setDraftError(null);
     setDraftResult(null);
     setFinalLetter(null);
+    brokenRetryCount.current = 0;
 
-    const disputePrompt = classifyDisputeType(approvedStory, disputeType);
+    const startedAt = performance.now();
+    const elapsedSeconds = () =>
+      Math.max(0, Math.round((performance.now() - startedAt) / 1000));
+    const isCurrent = () => cloudDraftController.current === controller;
+
+    const disputePrompt = classifyDisputeType(outbound, disputeType);
+
+    const runAttempt = async () => {
+      const result = await draftLetterInCloud(outbound, disputePrompt, {
+        signal: controller.signal,
+      });
+      const normalized = normalizeReturnedPlaceholders(
+        result.draftWithPlaceholders,
+        outbound,
+      );
+      const check = redactionMapRef.current.checkReturned(outbound, normalized);
+      const restored = redactionMapRef.current.restore(normalized);
+      const leftover = extractPlaceholders(restored);
+
+      return {
+        result,
+        normalized,
+        restored,
+        missing: [...check.missing],
+        unexpected: [...check.unexpected],
+        ok: check.ok && leftover.length === 0,
+        leftover,
+      };
+    };
+
+    type Attempt = Awaited<ReturnType<typeof runAttempt>>;
+
+    const failBroken = (attempt: Attempt): false => {
+      const missing = [...new Set([...attempt.missing, ...attempt.leftover])];
+      const unexpected = attempt.unexpected.filter(
+        (token) => !missing.includes(token),
+      );
+
+      if (import.meta.env.DEV) {
+        console.warn("[Letterlock] Placeholder validation failed", {
+          missing,
+          unexpected,
+        });
+      }
+
+      setDraftStatus("error");
+      setDraftError({
+        kind: "broken_placeholders",
+        timedOut: false,
+        waitSeconds: elapsedSeconds(),
+        missing,
+        unexpected,
+      });
+      return false;
+    };
+
+    const failCloud = (error: unknown): false => {
+      const code = error instanceof CloudDraftError ? error.code : "unknown";
+      const kind: DraftErrorKind =
+        code === "empty_response" || code === "content_filter"
+          ? "empty_or_refused"
+          : "cloud_unreachable";
+
+      if (import.meta.env.DEV) {
+        console.warn("[Letterlock] Cloud drafting failed:", code);
+      }
+
+      setDraftStatus("error");
+      setDraftError({
+        kind,
+        timedOut: code === "timeout",
+        waitSeconds: elapsedSeconds(),
+        missing: [],
+        unexpected: [],
+      });
+      return false;
+    };
 
     try {
-      const result = await draftLetterInCloud(
-        approvedStory,
-        disputePrompt,
-        { signal: controller.signal },
-      );
+      let attempt = await runAttempt();
+      if (!isCurrent()) return false;
 
-      if (controller.signal.aborted) return false;
-
-      const placeholderCheck = redactionMapRef.current.checkReturned(
-        approvedStory,
-        result.draftWithPlaceholders,
-      );
-
-      if (!placeholderCheck.ok) {
-        const missingText =
-          placeholderCheck.missing.length > 0
-            ? `Missing: ${placeholderCheck.missing.join(", ")}`
-            : "";
-        const unexpectedText =
-          placeholderCheck.unexpected.length > 0
-            ? `Unexpected: ${placeholderCheck.unexpected.join(", ")}`
-            : "";
-
-        const placeholderDetails = [missingText, unexpectedText]
-          .filter(Boolean)
-          .join(". ");
-
+      // Broken placeholders get exactly one automatic retry with the same
+      // placeholder-only request. Timeouts, local failures and empty/refused
+      // answers are never retried automatically.
+      if (!attempt.ok && brokenRetryCount.current < 1) {
+        brokenRetryCount.current += 1;
         if (import.meta.env.DEV) {
-          console.warn("[Letterlock] Placeholder validation failed", {
-            missing: placeholderCheck.missing,
-            unexpected: placeholderCheck.unexpected,
-          });
+          console.warn("[Letterlock] Placeholder mismatch, retrying once.");
         }
 
-        setDraftStatus("error");
-        setDraftError(
-          `The draft returned with missing or unknown placeholders. ${placeholderDetails}. No letter was restored.`,
-        );
-        return false;
+        try {
+          attempt = await runAttempt();
+        } catch (retryError: unknown) {
+          if (controller.signal.aborted) {
+            if (isCurrent()) {
+              setDraftStatus("idle");
+              setDraftError(null);
+            }
+            return false;
+          }
+          if (!isCurrent()) return false;
+          return failCloud(retryError);
+        }
+        if (!isCurrent()) return false;
       }
 
-      const restored = redactionMapRef.current.restore(
-        result.draftWithPlaceholders,
-      );
-      if (extractPlaceholders(restored).length > 0) {
-        setDraftStatus("error");
-        setDraftError(
-          "Some private placeholders could not be restored. No letter was finalized.",
-        );
-        return false;
-      }
+      if (!attempt.ok) return failBroken(attempt);
 
-      setDraftResult(result);
-      setFinalLetter(restored);
+      setDraftResult({
+        ...attempt.result,
+        draftWithPlaceholders: attempt.normalized,
+      });
+      setFinalLetter(attempt.restored);
       setDraftStatus("success");
       return true;
     } catch (error: unknown) {
       if (controller.signal.aborted) {
-        setDraftStatus("error");
-        setDraftError("Cloud drafting was cancelled.");
+        if (isCurrent()) {
+          setDraftStatus("idle");
+          setDraftError(null);
+        }
         return false;
       }
-
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Cloud drafting could not be completed.";
-      setDraftStatus("error");
-      setDraftError(message);
-      return false;
+      if (!isCurrent()) return false;
+      return failCloud(error);
     } finally {
       if (cloudDraftController.current === controller) {
         cloudDraftController.current = null;
@@ -238,8 +309,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     detectionRequest.current += 1;
     cloudDraftController.current?.abort();
     cloudDraftController.current = null;
-    setStory(defaultStory);
-    setEntities(defaultEntities);
+    setStory("");
+    setEntities([]);
     setDisputeType("deposit");
     setShowWipeModal(false);
     setDetection(null);

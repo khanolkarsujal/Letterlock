@@ -291,6 +291,7 @@ describe("detection pipeline", () => {
     expect(result.status).toBe("unavailable");
     expect(result.limited).toBe(true);
     expect(result.values.map((entry) => entry.value)).toEqual([
+      "Alex Example",
       "alex.example@test.invalid",
     ]);
     expect(track.seen.map((event) => event.status)).toEqual([
@@ -309,7 +310,7 @@ describe("detection pipeline", () => {
 
     expect(result.status).toBe("unavailable");
     expect(result.limited).toBe(true);
-    expect(result.values).toHaveLength(1);
+    expect(result.values).toHaveLength(2);
   });
 
   it("reports unavailable when the model disappears during detection", async () => {
@@ -343,6 +344,7 @@ describe("detection pipeline", () => {
     expect(result.status).toBe("available");
     expect(result.limited).toBe(true);
     expect(result.values.map((entry) => entry.value)).toEqual([
+      "Alex Example",
       "alex.example@test.invalid",
     ]);
   });
@@ -363,5 +365,48 @@ describe("detection pipeline", () => {
     });
 
     expect(progress).toEqual([0.4, 1]);
+  });
+
+  it("detects third-party names, organizations, and reference IDs in demo, rental, and medical stories", () => {
+    const demoStory = `Subject: Request for Salary Payment Correction
+
+Hello,
+
+My name is Arjun Mehta, and I worked at BrightTech Solutions as a software developer from 12 January 2024 to 30 September 2025.
+
+My employee ID is EMP-78291. My salary for October, amounting to ₹45,800, has not been credited to my bank account.
+
+My registered email is arjun.mehta@gmail.com, and my contact number is 91234 56789.
+
+My bank account number is 123456789012, and my IFSC code is SBIN0001234.
+
+Please contact my manager, Neha Kapoor, at 98765 12340, and resolve this issue by 5 December 2026.
+
+Regards,
+Arjun Mehta`;
+
+    const demoMatches = detectWithRules(demoStory);
+    expect(demoMatches.some((m) => m.value === "Arjun Mehta" && m.kind === "person")).toBe(true);
+    expect(demoMatches.some((m) => m.value === "Neha Kapoor" && m.kind === "person")).toBe(true);
+    expect(demoMatches.some((m) => m.value === "BrightTech Solutions" && m.kind === "organization")).toBe(true);
+    expect(demoMatches.some((m) => m.value === "EMP-78291" && m.kind === "reference")).toBe(true);
+    expect(demoMatches.some((m) => m.value === "arjun.mehta@gmail.com" && m.kind === "email")).toBe(true);
+    expect(demoMatches.some((m) => m.value === "91234 56789" && m.kind === "phone")).toBe(true);
+    expect(demoMatches.some((m) => m.value === "98765 12340" && m.kind === "phone")).toBe(true);
+    expect(demoMatches.some((m) => m.value === "123456789012" && m.kind === "account")).toBe(true);
+    expect(demoMatches.some((m) => m.value === "SBIN0001234" && m.kind === "account")).toBe(true);
+
+    const rentalMatches = detectWithRules(
+      "I moved out of 14 Oak Street, Apt 3B on 3 June. My landlord, Mr Vikram Nair, kept my deposit of £1,200. Call me on 98765 43210.",
+    );
+    expect(rentalMatches.some((m) => m.value === "Mr Vikram Nair" && m.kind === "person")).toBe(true);
+    expect(rentalMatches.some((m) => m.value === "98765 43210" && m.kind === "phone")).toBe(true);
+
+    const medicalMatches = detectWithRules(
+      "I was treated at Apollo Hospital by Dr. Priya Menon on 15 August 2026. Patient ID PAT-44812, bill ₹28,500.",
+    );
+    expect(medicalMatches.some((m) => m.value === "Apollo Hospital" && m.kind === "organization")).toBe(true);
+    expect(medicalMatches.some((m) => m.value === "Dr. Priya Menon" && m.kind === "person")).toBe(true);
+    expect(medicalMatches.some((m) => m.value === "PAT-44812" && m.kind === "reference")).toBe(true);
   });
 });
